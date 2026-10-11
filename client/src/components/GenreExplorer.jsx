@@ -8,7 +8,7 @@ export const gameGenres = [
     name: "Action",
     slug: "action",
     artworkSearch: "007 First Light",
-    match: ["007 first light"],
+    match: ["007 first light", "james bond 007 first light"],
   },
   {
     name: "RPG",
@@ -31,14 +31,18 @@ export const gameGenres = [
   {
     name: "Strategy",
     slug: "strategy",
-    artworkSearch: "Civilization VII",
-    match: ["sid meier s civilization vii", "civilization vii"],
+    artworkSearch: "Sid Meier's Civilization VII",
+    match: [
+      "sid meier s civilization vii",
+      "civilization vii",
+      "civilization 7",
+    ],
   },
   {
     name: "Racing",
     slug: "racing",
-    artworkSearch: "Forza Horizon 6",
-    match: ["forza horizon 6"],
+    artworkSearch: "Forza Horizon 5",
+    match: ["forza horizon 5"],
   },
   {
     name: "Indie",
@@ -55,27 +59,60 @@ export const gameGenres = [
 ];
 
 function normalizeName(name = "") {
-  return name.toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
+  return name
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, " ")
+    .trim();
 }
 
 function findMatchingGame(results, matchTerms) {
   const terms = matchTerms.map(normalizeName);
+  const games = results.filter((game) => game.backgroundImage);
 
-  // Prefer the exact game title.
-  const exact = results.find((game) =>
+  // First try an exact title match.
+  const exact = games.find((game) =>
     terms.includes(normalizeName(game.name)),
   );
 
   if (exact) return exact;
 
-  // Allow editions of the intended game, but not unrelated titles.
-  return results.find((game) => {
+  // Then accept common title variations and editions.
+  return games.find((game) => {
     const name = normalizeName(game.name);
 
     return terms.some(
-      (term) => name.startsWith(`${term} `),
+      (term) =>
+        name.includes(term) ||
+        term.startsWith(`${name} `),
     );
   });
+}
+
+async function fetchGenreResults(genre, signal, searchByTitle) {
+  try {
+    const data = await fetchGames({
+      page: 1,
+      pageSize: 40,
+      ordering: "-rating",
+      ...(searchByTitle
+        ? { search: genre.artworkSearch }
+        : { genres: genre.slug }),
+      signal,
+    });
+
+    return data.results ?? [];
+  } catch (error) {
+    if (error.name === "AbortError" || signal.aborted) {
+      return [];
+    }
+
+    console.warn(
+      `Could not fetch ${genre.name} artwork:`,
+      error.message,
+    );
+
+    return [];
+  }
 }
 
 export default function GenreExplorer({
@@ -88,56 +125,77 @@ export default function GenreExplorer({
     const controller = new AbortController();
 
     async function loadGenreArtwork() {
-      const results = await Promise.all(
-        gameGenres.map(async (genre) => {
-          try {
-            const data = await fetchGames({
-              page: 1,
-              pageSize: 10,
-              search: genre.artworkSearch,
-              ordering: "-rating",
-              signal: controller.signal,
-            });
-
-            if (controller.signal.aborted) return null;
-
-            const game = findMatchingGame(
-              data.results ?? [],
-              genre.match,
-            );
-
-            if (!game?.backgroundImage) {
-              console.warn(
-                `No matching artwork found for ${genre.name}: ${genre.artworkSearch}`,
-              );
-
-              return null;
-            }
-
-            return [genre.slug, game.backgroundImage];
-          } catch (error) {
-            if (
-              error.name !== "AbortError" &&
-              !controller.signal.aborted
-            ) {
-              console.error(
-                `Unable to load ${genre.name} artwork:`,
-                error.message,
-              );
-            }
-
-            return null;
-          }
-        }),
+      // First pass: find the specifically chosen games.
+      const titleResults = await Promise.all(
+        gameGenres.map(async (genre) => ({
+          genre,
+          results: await fetchGenreResults(
+            genre,
+            controller.signal,
+            true,
+          ),
+        })),
       );
 
       if (controller.signal.aborted) return;
 
       const nextArtwork = {};
+      const usedGameIds = new Set();
+      const usedImages = new Set();
 
-      results.filter(Boolean).forEach(([slug, image]) => {
-        nextArtwork[slug] = image;
-      });
+      // Reserve distinct images for exact title matches first.
+      for (const { genre, results } of titleResults) {
+        const game = findMatchingGame(results, genre.match);
+
+        if (
+          game?.backgroundImage &&
+          !usedGameIds.has(game.id) &&
+          !usedImages.has(game.backgroundImage)
+        ) {
+          nextArtwork[genre.slug] = game.backgroundImage;
+          usedGameIds.add(game.id);
+          usedImages.add(game.backgroundImage);
+        }
+      }
+
+      // Second pass: find category-specific artwork only
+      // for genres whose preferred game could not be matched.
+      const missingGenres = gameGenres.filter(
+        (genre) => !nextArtwork[genre.slug],
+      );
+
+      const fallbackResults = await Promise.all(
+        missingGenres.map(async (genre) => ({
+          genre,
+          results: await fetchGenreResults(
+            genre,
+            controller.signal,
+            false,
+          ),
+        })),
+      );
+
+      if (controller.signal.aborted) return;
+
+      // Select unique artwork from the actual genre results.
+      for (const { genre, results } of fallbackResults) {
+        const game = results.find(
+          (candidate) =>
+            candidate.backgroundImage &&
+            !usedGameIds.has(candidate.id) &&
+            !usedImages.has(candidate.backgroundImage),
+        );
+
+        if (game) {
+          nextArtwork[genre.slug] = game.backgroundImage;
+          usedGameIds.add(game.id);
+          usedImages.add(game.backgroundImage);
+        } else {
+          console.warn(
+            `No unique artwork available for ${genre.name}.`,
+          );
+        }
+      }
 
       setArtwork(nextArtwork);
     }
@@ -192,7 +250,7 @@ export default function GenreExplorer({
                 aria-label={`Explore ${genre.name} games`}
                 aria-pressed={active}
                 onClick={() => chooseGenre(genre)}
-                className={`group relative isolate aspect-[16/10] min-w-0 overflow-hidden rounded-xl border bg-gradient-to-br from-[#272238] to-[#11121a] text-left transition-[border-color,box-shadow] duration-300 focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-violet-400 sm:aspect-[16/10] ${
+                className={`group relative isolate aspect-[16/10] min-w-0 overflow-hidden rounded-xl border bg-gradient-to-br from-[#272238] to-[#11121a] text-left transition-[border-color,box-shadow] duration-300 focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-violet-400 ${
                   active
                     ? "border-violet-400 shadow-[0_0_25px_rgba(139,92,246,0.18)]"
                     : "border-white/[0.08] hover:border-violet-400/60"
@@ -212,12 +270,11 @@ export default function GenreExplorer({
                   />
                 )}
 
-                {/* Darken the lower portion for legible text. */}
+                {/* Keep the genre name readable. */}
                 <div className="pointer-events-none absolute inset-0 -z-10 bg-gradient-to-t from-[#090a0f] via-[#090a0f]/20 to-black/5" />
 
                 <div className="pointer-events-none absolute inset-0 -z-10 bg-violet-950/10 opacity-0 transition-opacity duration-300 group-hover:opacity-100" />
 
-                {/* Genre name only — no icons or numbering. */}
                 <div className="absolute inset-x-0 bottom-0 flex items-end justify-between gap-2 p-3.5 sm:p-5">
                   <h3 className="text-base font-bold tracking-tight text-white drop-shadow-lg transition-transform duration-300 group-hover:translate-x-1 sm:text-xl lg:text-2xl">
                     {genre.name}
