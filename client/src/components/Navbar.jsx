@@ -9,11 +9,18 @@ import {
   X,
 } from "lucide-react";
 
+
+
 const navLinks = [
-  { label: "Discover", href: "#discover" },
-  { label: "Categories", href: "#genres" },
-  { label: "New Releases", href: "#new-releases" },
+  { label: "Discover", href: "/discover" },
+  { label: "Categories", href: "/#genres" },
+  {
+    label: "New Releases",
+    href: "/discover?ordering=-released",
+  },
 ];
+
+
 
 export default function Navbar() {
   const [menuOpen, setMenuOpen] = useState(false);
@@ -23,7 +30,7 @@ export default function Navbar() {
       <nav className="mx-auto flex h-[76px] max-w-[1440px] items-center justify-between px-5 sm:px-8 lg:px-12">
         {/* Brand */}
         <a
-          href="#home"
+          href="/"
           aria-label="NEXORA home"
           className="group flex items-center gap-2.5"
         >
