@@ -1,3 +1,4 @@
+
 const API_BASE_URL =
   import.meta.env.VITE_API_BASE_URL || "http://localhost:5000/api";
 
@@ -7,6 +8,7 @@ export async function fetchGames({
   search = "",
   genres = "",
   ordering = "-rating",
+  signal,
 } = {}) {
   const params = new URLSearchParams({
     page: String(page),
@@ -24,6 +26,7 @@ export async function fetchGames({
 
   const response = await fetch(
     `${API_BASE_URL}/games?${params.toString()}`,
+    { signal },
   );
 
   const data = await response.json().catch(() => null);
@@ -34,3 +37,4 @@ export async function fetchGames({
 
   return data;
 }
+
