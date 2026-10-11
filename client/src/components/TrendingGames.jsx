@@ -1,20 +1,29 @@
 
 import { useEffect, useState } from "react";
-import { ArrowRight, Gamepad2, RefreshCw } from "lucide-react";
+import {
+  ArrowRight,
+  Gamepad2,
+  RefreshCw,
+  X,
+} from "lucide-react";
+
 import { fetchGames } from "../services/gameService";
 import GameCard from "./GameCard";
 
 function GameCardSkeleton() {
   return (
     <div className="animate-pulse">
-      <div className="aspect-[4/5] rounded-xl bg-white/[0.06]" />
+      <div className="aspect-[16/10] rounded-xl bg-white/[0.06]" />
       <div className="mt-4 h-4 w-3/4 rounded bg-white/[0.07]" />
       <div className="mt-3 h-3 w-1/2 rounded bg-white/[0.05]" />
     </div>
   );
 }
 
-export default function TrendingGames() {
+export default function TrendingGames({
+  selectedGenre = null,
+  onClearGenre,
+}) {
   const [games, setGames] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -32,6 +41,7 @@ export default function TrendingGames() {
           page: 1,
           pageSize: 8,
           ordering: "-rating",
+          genres: selectedGenre?.slug ?? "",
           signal: controller.signal,
         });
 
@@ -39,8 +49,13 @@ export default function TrendingGames() {
           setGames(data.results ?? []);
         }
       } catch (err) {
-        if (err.name !== "AbortError" && !controller.signal.aborted) {
-          setError(err.message || "Unable to load games right now.");
+        if (
+          err.name !== "AbortError" &&
+          !controller.signal.aborted
+        ) {
+          setError(
+            err.message || "Unable to load games right now.",
+          );
         }
       } finally {
         if (!controller.signal.aborted) {
@@ -52,18 +67,21 @@ export default function TrendingGames() {
     loadGames();
 
     return () => controller.abort();
-  }, [retryKey]);
+  }, [retryKey, selectedGenre]);
+
+  const heading = selectedGenre
+    ? `${selectedGenre.name} Games`
+    : "Discover Games";
 
   return (
     <section
       id="discover"
-      className="relative overflow-hidden border-t border-white/[0.07] bg-[#0d0e15] px-5 py-20 sm:px-8 sm:py-28 lg:px-12"
+      className="relative scroll-mt-6 overflow-hidden border-t border-white/[0.07] bg-[#0d0e15] px-5 py-20 sm:px-8 sm:py-28 lg:px-12"
     >
-      {/* Ambient background */}
       <div className="pointer-events-none absolute -right-52 top-20 h-96 w-96 rounded-full bg-violet-600/[0.07] blur-[120px]" />
 
       <div className="relative mx-auto max-w-[1440px]">
-        {/* Section heading */}
+        {/* Heading */}
         <div className="mb-10 flex flex-col gap-5 sm:mb-12 sm:flex-row sm:items-end sm:justify-between">
           <div>
             <p className="mb-4 flex items-center gap-2 text-[10px] font-bold uppercase tracking-[0.3em] text-violet-400 sm:text-xs">
@@ -72,23 +90,27 @@ export default function TrendingGames() {
             </p>
 
             <h2 className="text-3xl font-black tracking-[-0.045em] text-white sm:text-5xl lg:text-6xl">
-              Discover Games
+              {heading}
               <span className="text-violet-400">.</span>
             </h2>
 
             <p className="mt-4 max-w-xl text-sm leading-7 text-zinc-400 sm:text-base">
-              From unforgettable adventures to worlds beyond
-              imagination, find something worth playing.
+              {selectedGenre
+                ? `Explore ${selectedGenre.name.toLowerCase()} games and discover your next adventure.`
+                : "From unforgettable adventures to hidden gems, find something worth playing."}
             </p>
           </div>
 
-          <p className="text-xs text-zinc-500">
-            {loading
-              ? "Exploring the universe..."
-              : error
-                ? "Catalog temporarily unavailable"
-                : `${games.length} games discovered`}
-          </p>
+          {selectedGenre && (
+            <button
+              type="button"
+              onClick={onClearGenre}
+              className="inline-flex items-center gap-2 self-start text-sm text-zinc-400 transition-colors hover:text-white sm:self-auto"
+            >
+              <X size={15} />
+              Clear filter
+            </button>
+          )}
         </div>
 
         {/* Loading state */}
@@ -111,8 +133,7 @@ export default function TrendingGames() {
             </p>
 
             <p className="mx-auto mt-3 max-w-md text-sm leading-6 text-zinc-400">
-              {error}. Check that your backend is running and
-              try again.
+              {error}
             </p>
 
             <button
@@ -126,52 +147,46 @@ export default function TrendingGames() {
           </div>
         )}
 
-        {/* Game catalog */}
+        {/* Game grid */}
         {!loading && !error && games.length > 0 && (
-          <div className="grid grid-cols-2 gap-x-4 gap-y-9 sm:grid-cols-3 sm:gap-x-5 sm:gap-y-10 lg:grid-cols-4 lg:gap-x-6">
-            {games.map((game) => (
-              <GameCard key={game.id} game={game} />
-            ))}
-          </div>
+          <>
+            <div className="mb-5 text-xs text-zinc-500">
+              Showing {games.length} games
+            </div>
+
+            <div className="grid grid-cols-2 gap-x-4 gap-y-9 sm:grid-cols-3 sm:gap-x-5 sm:gap-y-10 lg:grid-cols-4 lg:gap-x-6">
+              {games.map((game) => (
+                <GameCard key={game.id} game={game} />
+              ))}
+            </div>
+          </>
         )}
 
         {/* Empty state */}
         {!loading && !error && games.length === 0 && (
           <div className="rounded-xl border border-white/10 py-16 text-center">
             <p className="font-semibold text-white">
-              No games found.
+              No games found for this category.
             </p>
-            <p className="mt-2 text-sm text-zinc-400">
-              Let's try discovering more games later.
-            </p>
-          </div>
-        )}
 
-        {/* Footer link */}
-        {!loading && !error && games.length > 0 && (
-          <div className="mt-12 flex justify-center">
+            <p className="mt-2 text-sm text-zinc-400">
+              Try another genre or explore the full catalog.
+            </p>
+
             <button
               type="button"
-              onClick={() =>
-                window.scrollTo({
-                  top: 0,
-                  behavior: "smooth",
-                })
-              }
-              className="group inline-flex items-center gap-3 rounded-md border border-white/10 px-5 py-3.5 text-sm font-semibold text-zinc-300 transition-all duration-300 hover:border-violet-400/40 hover:text-white"
+              onClick={onClearGenre}
+              className="mt-5 inline-flex items-center gap-2 rounded-md border border-white/10 px-4 py-2.5 text-sm text-zinc-300 transition-colors hover:border-violet-400/40 hover:text-white"
             >
-              Explore the universe
-              <ArrowRight
-                size={16}
-                className="transition-transform duration-300 group-hover:translate-x-1"
-              />
+              <ArrowRight size={15} />
+              Explore all games
             </button>
           </div>
         )}
 
-        <p className="mt-8 text-center text-xs leading-6 text-zinc-600">
-          Game information provided by RAWG.
-          {" "}
+        {/* Attribution */}
+        <p className="mt-10 text-center text-xs leading-6 text-zinc-600">
+          Game information provided by{" "}
           <a
             href="https://rawg.io"
             target="_blank"
@@ -185,4 +200,3 @@ export default function TrendingGames() {
     </section>
   );
 }
-
