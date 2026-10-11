@@ -17,7 +17,20 @@ gsap.registerPlugin(ScrollTrigger);
    FEATURED GAMES
 ========================================= */
 
+
+
 const FEATURED_GAMES = [
+{
+  search: "Red Dead Redemption 2",
+  titleTop: "RED DEAD",
+  titleBottom: "REDEMPTION 2.",
+  label: "A WILD FRONTIER",
+  genre: "OPEN-WORLD ACTION ADVENTURE",
+  subtitle: "OUTLAWS UNTIL THE END.",
+  description:
+    "Ride across a vast and unforgiving frontier in an unforgettable story of loyalty, survival, and the fading American Wild West.",
+},
+
   {
     search: "Elden Ring",
     titleTop: "ELDEN",
@@ -26,7 +39,7 @@ const FEATURED_GAMES = [
     genre: "OPEN-WORLD ACTION RPG",
     subtitle: "RISE, TARNISHED.",
     description:
-      "Enter the Lands Between, face formidable enemies, and forge your own legend in a vast, mysterious fantasy world.",
+      "Explore the Lands Between, challenge formidable foes, and forge your own legend in a vast, mysterious fantasy world.",
   },
   {
     search: "Cyberpunk 2077",
@@ -36,19 +49,11 @@ const FEATURED_GAMES = [
     genre: "SCI-FI ACTION RPG",
     subtitle: "BECOME A LEGEND.",
     description:
-      "Step into Night City, a neon-soaked metropolis where ambition, technology, and danger collide.",
-  },
-  {
-    search: "Resident Evil Requiem",
-    titleTop: "RESIDENT EVIL",
-    titleBottom: "REQUIEM.",
-    label: "ENTER THE NIGHTMARE",
-    genre: "SURVIVAL HORROR",
-    subtitle: "FEAR HAS A NEW FACE.",
-    description:
-      "Enter a chilling survival-horror experience where every discovery takes you deeper into the nightmare.",
+      "Step into Night City, a neon-soaked metropolis where technology, ambition, and danger collide.",
   },
 ];
+
+
 
 /* =========================================
    GAME DATA HELPERS
@@ -165,7 +170,6 @@ function HeroScene({ chapter, index }) {
                   className="text-violet-300"
                 />
                 {Number(chapter.rating).toFixed(1)}
-                <span className="text-zinc-500">RAWG</span>
               </span>
             )}
           </div>
@@ -268,7 +272,7 @@ export default function CinematicHero() {
           FEATURED_GAMES.map(async (featured) => {
             const data = await fetchGames({
               page: 1,
-              pageSize: 10,
+              pageSize: 40,
               search: featured.search,
               ordering: "-rating",
               signal: controller.signal,
