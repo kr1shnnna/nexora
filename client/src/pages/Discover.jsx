@@ -229,7 +229,8 @@ export default function Discover() {
 
             <input
               id="game-search"
-              type="search"
+              type="text"
+              inputMode="search"
               value={searchInput}
               onChange={(event) => {
                 setSearchInput(event.target.value);
@@ -254,10 +255,6 @@ export default function Discover() {
                 <X size={18} />
               </button>
             )}
-
-            <span className="hidden rounded border border-white/10 px-2 py-1 text-[10px] text-zinc-600 sm:block">
-              RAWG
-            </span>
           </div>
         </div>
 
@@ -452,18 +449,6 @@ export default function Discover() {
           </div>
         )}
 
-        {/* Attribution */}
-        <p className="mt-12 text-center text-xs leading-6 text-zinc-600">
-          Game information provided by{" "}
-          <a
-            href="https://rawg.io"
-            target="_blank"
-            rel="noreferrer"
-            className="underline underline-offset-4 hover:text-zinc-400"
-          >
-            RAWG Video Games Database
-          </a>
-        </p>
       </div>
     </main>
   );

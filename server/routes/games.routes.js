@@ -34,9 +34,32 @@ router.get("/", async (req, res) => {
 
   const page = Number(req.query.page ?? 1);
   const pageSize = Number(req.query.page_size ?? 12);
+
   const search = req.query.search;
+  const searchTerm =
+    typeof search === "string" ? search.trim() : "";
+
   const genres = req.query.genres;
-  const ordering = req.query.ordering ?? "-rating";
+
+  const requestedOrdering =
+    typeof req.query.ordering === "string"
+      ? req.query.ordering.trim()
+      : "";
+
+  /*
+   * During a search, let RAWG determine relevance by default.
+   * Without a search, show highly rated games first.
+   * "relevance" is a frontend-only sorting option.
+   */
+  let ordering;
+
+  if (requestedOrdering === "relevance") {
+    ordering = "";
+  } else if (requestedOrdering) {
+    ordering = requestedOrdering;
+  } else {
+    ordering = searchTerm ? "" : "-rating";
+  }
 
   // Validate pagination.
   if (!Number.isSafeInteger(page) || page < 1) {
@@ -68,7 +91,7 @@ router.get("/", async (req, res) => {
     });
   }
 
-  // Accept genre slugs such as action, rpg, or action,rpg.
+  // Validate genre slugs.
   if (
     genres !== undefined &&
     (
@@ -83,11 +106,8 @@ router.get("/", async (req, res) => {
     });
   }
 
-  // Only allow documented sorting fields.
-  if (
-    typeof ordering !== "string" ||
-    !allowedOrdering.has(ordering)
-  ) {
+  // Validate sorting, allowing an empty ordering for relevance.
+  if (ordering && !allowedOrdering.has(ordering)) {
     return res.status(400).json({
       success: false,
       message: "Unsupported sorting option.",
@@ -99,10 +119,15 @@ router.get("/", async (req, res) => {
   rawgUrl.searchParams.set("key", apiKey);
   rawgUrl.searchParams.set("page", String(page));
   rawgUrl.searchParams.set("page_size", String(pageSize));
-  rawgUrl.searchParams.set("ordering", ordering);
 
-  if (typeof search === "string" && search.trim()) {
-    rawgUrl.searchParams.set("search", search.trim());
+  // Only send ordering when the user selected an actual sort field.
+  if (ordering) {
+    rawgUrl.searchParams.set("ordering", ordering);
+  }
+
+  if (searchTerm) {
+    rawgUrl.searchParams.set("search", searchTerm);
+    rawgUrl.searchParams.set("exclude_additions", "true");
   }
 
   if (typeof genres === "string" && genres) {
@@ -118,7 +143,6 @@ router.get("/", async (req, res) => {
     });
 
     if (!response.ok) {
-      // Keep the API key and upstream response out of client errors.
       console.error(`RAWG returned HTTP ${response.status}`);
 
       if (response.status === 429) {
@@ -136,7 +160,6 @@ router.get("/", async (req, res) => {
 
     const data = await response.json();
 
-    // Return only the fields the storefront needs.
     const results = (data.results ?? []).map((game) => ({
       id: game.id,
       slug: game.slug,
@@ -173,14 +196,12 @@ router.get("/", async (req, res) => {
       results,
     });
   } catch (error) {
-    
     console.error("Game API request failed:", {
-  message: error.message,
-  cause: error.cause?.message,
-  code: error.cause?.code,
-  name: error.cause?.name,
-});
-
+      message: error.message,
+      cause: error.cause?.message,
+      code: error.cause?.code,
+      name: error.cause?.name,
+    });
 
     if (error.name === "TimeoutError") {
       return res.status(504).json({
@@ -197,4 +218,3 @@ router.get("/", async (req, res) => {
 });
 
 export default router;
-
