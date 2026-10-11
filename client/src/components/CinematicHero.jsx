@@ -7,116 +7,104 @@ import {
   ArrowUpRight,
   Gamepad2,
   RefreshCw,
-  Sparkles,
   Star,
 } from "lucide-react";
 import { fetchGames } from "../services/gameService";
 
 gsap.registerPlugin(ScrollTrigger);
 
-/* ---------------------------------- */
-/* Game data helpers                  */
-/* ---------------------------------- */
+/* =========================================
+   FEATURED GAMES
+========================================= */
 
-function splitGameTitle(title = "DISCOVER GAMES") {
-  const words = title.trim().toUpperCase().split(/\s+/).filter(Boolean);
+const FEATURED_GAMES = [
+  {
+    search: "Elden Ring",
+    titleTop: "ELDEN",
+    titleBottom: "RING.",
+    label: "FROM THE LANDS BETWEEN",
+    genre: "OPEN-WORLD ACTION RPG",
+    subtitle: "RISE, TARNISHED.",
+    description:
+      "Enter the Lands Between, face formidable enemies, and forge your own legend in a vast, mysterious fantasy world.",
+  },
+  {
+    search: "Cyberpunk 2077",
+    titleTop: "CYBERPUNK",
+    titleBottom: "2077.",
+    label: "WELCOME TO NIGHT CITY",
+    genre: "SCI-FI ACTION RPG",
+    subtitle: "BECOME A LEGEND.",
+    description:
+      "Step into Night City, a neon-soaked metropolis where ambition, technology, and danger collide.",
+  },
+  {
+    search: "Resident Evil Requiem",
+    titleTop: "RESIDENT EVIL",
+    titleBottom: "REQUIEM.",
+    label: "ENTER THE NIGHTMARE",
+    genre: "SURVIVAL HORROR",
+    subtitle: "FEAR HAS A NEW FACE.",
+    description:
+      "Enter a chilling survival-horror experience where every discovery takes you deeper into the nightmare.",
+  },
+];
 
-  if (words.length <= 1) {
-    return {
-      titleTop: words[0] || "DISCOVER",
-      titleBottom: "",
-    };
-  }
+/* =========================================
+   GAME DATA HELPERS
+========================================= */
 
-  let bestSplit = 1;
-  let bestDifference = Infinity;
+function normalizeGameName(name = "") {
+  return name.toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
+}
 
-  for (let index = 1; index < words.length; index++) {
-    const firstLine = words.slice(0, index).join(" ");
-    const secondLine = words.slice(index).join(" ");
-    const difference = Math.abs(firstLine.length - secondLine.length);
+function findMatchingGame(results, expectedTitle) {
+  const expected = normalizeGameName(expectedTitle);
 
-    if (difference < bestDifference) {
-      bestDifference = difference;
-      bestSplit = index;
-    }
-  }
+  return (
+    results.find(
+      (game) => normalizeGameName(game.name) === expected,
+    ) ??
+    results.find(
+      (game) =>
+        normalizeGameName(game.name).startsWith(`${expected} `),
+    ) ??
+    results.find((game) =>
+      normalizeGameName(game.name).includes(expected),
+    )
+  );
+}
 
+function createFeaturedChapter(game, featured, index) {
   return {
-    titleTop: words.slice(0, bestSplit).join(" "),
-    titleBottom: words.slice(bestSplit).join(" "),
+    id: game.id,
+    slug: game.slug,
+    number: String(index + 1).padStart(2, "0"),
+    label: featured.label,
+    genre:
+      game.genres
+        ?.slice(0, 2)
+        .map((genre) => genre.name)
+        .join(" / ") || featured.genre,
+    titleTop: featured.titleTop,
+    titleBottom: featured.titleBottom,
+    subtitle: featured.subtitle,
+    description: featured.description,
+    image: game.backgroundImage,
+    rating: game.rating,
+    releaseDate: game.released,
   };
 }
 
-function createFeaturedChapters(games = []) {
-  const candidates = games.filter(
-    (game) => game.name && game.backgroundImage,
-  );
-
-  const selected = [];
-  const usedGenres = new Set();
-
-  // Prefer different genres for the cinematic chapters.
-  for (const game of candidates) {
-    const primaryGenre = game.genres?.[0]?.slug;
-
-    if (!primaryGenre || !usedGenres.has(primaryGenre)) {
-      selected.push(game);
-
-      if (primaryGenre) {
-        usedGenres.add(primaryGenre);
-      }
-    }
-
-    if (selected.length === 3) break;
-  }
-
-  // Fill remaining chapters when genre diversity is limited.
-  for (const game of candidates) {
-    if (selected.length === 3) break;
-
-    if (!selected.some((item) => item.id === game.id)) {
-      selected.push(game);
-    }
-  }
-
-  return selected.map((game, index) => {
-    const title = splitGameTitle(game.name);
-
-    return {
-      id: game.id,
-      slug: game.slug,
-      number: String(index + 1).padStart(2, "0"),
-      label: "FEATURED GAME",
-      genre:
-        game.genres
-          ?.slice(0, 2)
-          .map((genre) => genre.name)
-          .join(" / ") || "VIDEO GAME",
-      rating: game.rating,
-      releaseDate: game.released,
-      image: game.backgroundImage,
-      titleTop: title.titleTop,
-      titleBottom: title.titleBottom,
-      subtitle: "DISCOVER YOUR NEXT OBSESSION.",
-      description: `Discover ${game.name}, explore its genres, and find out what makes this game worth your attention.`,
-    };
-  });
-}
-
-/* ---------------------------------- */
-/* Desktop chapter                    */
-/* ---------------------------------- */
+/* =========================================
+   DESKTOP HERO SCENE
+========================================= */
 
 function HeroScene({ chapter, index }) {
-  const hasRating = Number(chapter.rating) > 0;
-
   return (
     <article
       data-hero-scene
-      className={`absolute inset-0 overflow-hidden ${
-        index === 0 ? "opacity-100" : "opacity-0"
-      }`}
+      className="absolute inset-0 overflow-hidden opacity-0"
       style={{ zIndex: index + 1 }}
       aria-label={`Featured game: ${chapter.titleTop} ${chapter.titleBottom}`}
     >
@@ -133,26 +121,30 @@ function HeroScene({ chapter, index }) {
         }}
       />
 
-      {/* Cinematic color grading */}
+      {/* Cinematic overlays */}
       <div className="pointer-events-none absolute inset-0 bg-black/25" />
 
       <div className="pointer-events-none absolute inset-0 bg-gradient-to-r from-[#090a0f] via-[#090a0f]/75 to-[#090a0f]/15" />
 
       <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-[#090a0f] via-transparent to-[#090a0f]/55" />
 
-      {/* Atmospheric glow */}
+      {/* Subtle violet ambient light */}
       <div className="pointer-events-none absolute -right-40 top-1/4 h-[450px] w-[450px] rounded-full bg-violet-600/10 blur-[140px]" />
 
-      {/* Chapter content */}
+      {/* Main content */}
       <div className="relative z-10 mx-auto flex h-full w-full max-w-[1600px] items-center px-6 pb-14 pt-24 sm:px-10 lg:px-20">
         <div data-hero-copy className="w-full max-w-4xl">
-          {/* Chapter label */}
+          {/* Chapter badge: controller icon instead of glitter */}
           <div
             data-reveal
             className="mb-7 flex flex-wrap items-center gap-3"
           >
             <span className="flex items-center gap-2 rounded-full border border-violet-300/20 bg-violet-300/[0.08] px-3.5 py-2 backdrop-blur-lg">
-              <Sparkles size={13} className="text-violet-300" />
+              <Gamepad2
+                size={15}
+                strokeWidth={1.8}
+                className="text-violet-300"
+              />
 
               <span className="text-[10px] font-bold uppercase tracking-[0.2em] text-violet-200 sm:text-xs">
                 CHAPTER {chapter.number}
@@ -165,7 +157,7 @@ function HeroScene({ chapter, index }) {
               {chapter.genre}
             </span>
 
-            {hasRating && (
+            {Number(chapter.rating) > 0 && (
               <span className="inline-flex items-center gap-1.5 text-xs text-zinc-300">
                 <Star
                   size={13}
@@ -186,20 +178,18 @@ function HeroScene({ chapter, index }) {
             {chapter.label}
           </p>
 
-          {/* Each title line can animate separately */}
-          <h1 className="max-w-5xl break-words text-[clamp(3rem,7.8vw,7.5rem)] font-black leading-[0.87] tracking-[-0.075em] text-white">
+          {/* Cinematic game title */}
+          <h1 className="break-words text-[clamp(3rem,7.8vw,7.5rem)] font-black leading-[0.87] tracking-[-0.075em] text-white">
             <span data-reveal-line className="block">
               {chapter.titleTop}
             </span>
 
-            {chapter.titleBottom && (
-              <span
-                data-reveal-line
-                className="block bg-gradient-to-r from-white via-white to-violet-300 bg-clip-text text-transparent"
-              >
-                {chapter.titleBottom}
-              </span>
-            )}
+            <span
+              data-reveal-line
+              className="block bg-gradient-to-r from-white via-white to-violet-300 bg-clip-text text-transparent"
+            >
+              {chapter.titleBottom}
+            </span>
           </h1>
 
           {/* Tagline */}
@@ -218,7 +208,7 @@ function HeroScene({ chapter, index }) {
             {chapter.description}
           </p>
 
-          {/* CTA buttons */}
+          {/* Actions */}
           <div data-reveal className="mt-8 flex flex-wrap gap-3 sm:mt-9">
             <a
               href="#discover"
@@ -246,14 +236,13 @@ function HeroScene({ chapter, index }) {
   );
 }
 
-/* ---------------------------------- */
-/* Main cinematic hero                */
-/* ---------------------------------- */
+/* =========================================
+   MAIN CINEMATIC HERO
+========================================= */
 
 export default function CinematicHero() {
   const desktopRef = useRef(null);
   const mobileCopyRef = useRef(null);
-  const mobileImageRef = useRef(null);
 
   const [chapters, setChapters] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -263,9 +252,9 @@ export default function CinematicHero() {
 
   const mobileChapter = chapters[mobileIndex];
 
-  /* ---------------------------------- */
-  /* Fetch games from our Express API   */
-  /* ---------------------------------- */
+  /* ---------------------------------------
+     Fetch our three chosen games from RAWG
+  --------------------------------------- */
 
   useEffect(() => {
     const controller = new AbortController();
@@ -275,22 +264,54 @@ export default function CinematicHero() {
       setError("");
 
       try {
-        const data = await fetchGames({
-          page: 1,
-          pageSize: 20,
-          ordering: "-rating",
-          signal: controller.signal,
-        });
+        const matches = await Promise.all(
+          FEATURED_GAMES.map(async (featured) => {
+            const data = await fetchGames({
+              page: 1,
+              pageSize: 10,
+              search: featured.search,
+              ordering: "-rating",
+              signal: controller.signal,
+            });
 
-        const featured = createFeaturedChapters(data.results ?? []);
+            const game = findMatchingGame(
+              data.results ?? [],
+              featured.search,
+            );
 
-        if (featured.length === 0) {
-          throw new Error("No games with artwork were returned.");
+            if (!game?.backgroundImage) {
+              console.warn(
+                `No RAWG artwork found for ${featured.search}`,
+              );
+              return null;
+            }
+
+            return { game, featured };
+          }),
+        );
+
+        if (controller.signal.aborted) return;
+
+        const loadedChapters = matches
+          .filter(Boolean)
+          .map(({ game, featured }, index) =>
+            createFeaturedChapter(game, featured, index),
+          );
+
+        if (loadedChapters.length === 0) {
+          throw new Error(
+            "None of the selected games could be loaded from RAWG.",
+          );
         }
 
-        if (!controller.signal.aborted) {
-          setChapters(featured);
-          setMobileIndex(0);
+        setChapters(loadedChapters);
+        setMobileIndex(0);
+
+        if (loadedChapters.length < FEATURED_GAMES.length) {
+          console.warn(
+            "Some featured games could not be loaded.",
+            loadedChapters.map((chapter) => chapter.slug),
+          );
         }
       } catch (err) {
         if (controller.signal.aborted || err.name === "AbortError") {
@@ -298,7 +319,7 @@ export default function CinematicHero() {
         }
 
         setError(
-          err.message || "Unable to load featured games right now.",
+          err.message || "Unable to load featured games.",
         );
       } finally {
         if (!controller.signal.aborted) {
@@ -312,14 +333,14 @@ export default function CinematicHero() {
     return () => controller.abort();
   }, [retryKey]);
 
-  /* ---------------------------------- */
-  /* Desktop GSAP / ScrollTrigger       */
-  /* ---------------------------------- */
+  /* ---------------------------------------
+     Desktop cinematic animation
+  --------------------------------------- */
 
   useLayoutEffect(() => {
-    const pin = desktopRef.current;
+    const container = desktopRef.current;
 
-    if (!pin || chapters.length === 0) return;
+    if (!container || chapters.length === 0) return;
 
     const media = gsap.matchMedia();
 
@@ -334,11 +355,11 @@ export default function CinematicHero() {
         if (!desktop) return;
 
         const scenes = Array.from(
-          pin.querySelectorAll("[data-hero-scene]"),
+          container.querySelectorAll("[data-hero-scene]"),
         );
 
         const markers = Array.from(
-          pin.querySelectorAll("[data-chapter-marker]"),
+          container.querySelectorAll("[data-chapter-marker]"),
         );
 
         if (scenes.length === 0) return;
@@ -353,13 +374,11 @@ export default function CinematicHero() {
         const getImage = (scene) =>
           scene.querySelector("[data-hero-image]");
 
-        // Establish a consistent initial state.
+        // Set a stable starting state.
         gsap.set(scenes, { autoAlpha: 0 });
 
         scenes.forEach((scene) => {
-          if (getImage(scene)) {
-            gsap.set(getImage(scene), { scale: 1.1 });
-          }
+          gsap.set(getImage(scene), { scale: 1.1 });
 
           gsap.set(getRevealItems(scene), {
             autoAlpha: 0,
@@ -369,38 +388,34 @@ export default function CinematicHero() {
 
         gsap.set(scenes[0], { autoAlpha: 1 });
 
-        // Show a complete static scene when motion is reduced.
+        // Keep the first chapter static for reduced-motion users.
         if (reducedMotion) {
           gsap.set(getRevealItems(scenes[0]), {
             clearProps: "all",
           });
 
-          if (getImage(scenes[0])) {
-            gsap.set(getImage(scenes[0]), {
-              clearProps: "transform",
-            });
-          }
+          gsap.set(getImage(scenes[0]), {
+            clearProps: "transform",
+          });
 
           return;
         }
 
-        /* Opening reveal */
+        // Opening reveal.
         const intro = gsap.timeline({
           defaults: { ease: "power3.out" },
         });
 
-        if (getImage(scenes[0])) {
-          intro.fromTo(
-            getImage(scenes[0]),
-            { scale: 1.12 },
-            {
-              scale: 1,
-              duration: 2,
-              ease: "power2.out",
-            },
-            0,
-          );
-        }
+        intro.fromTo(
+          getImage(scenes[0]),
+          { scale: 1.12 },
+          {
+            scale: 1,
+            duration: 2,
+            ease: "power2.out",
+          },
+          0,
+        );
 
         intro.to(
           getRevealItems(scenes[0]),
@@ -413,7 +428,7 @@ export default function CinematicHero() {
           0.12,
         );
 
-        /* Progress indicators */
+        // Chapter progress indicators.
         let activeChapter = 0;
 
         markers.forEach((marker, index) => {
@@ -444,10 +459,10 @@ export default function CinematicHero() {
           });
         };
 
-        /* Scroll-controlled chapter transitions */
+        // One scroll-driven timeline controls all three chapters.
         const timeline = gsap.timeline({
           scrollTrigger: {
-            trigger: pin,
+            trigger: container,
             start: "top top",
             end: () => `+=${window.innerHeight * 2.8}`,
             pin: true,
@@ -471,7 +486,7 @@ export default function CinematicHero() {
           const next = scenes[index + 1];
           const transitionStart = 0.9 + index * 1.4;
 
-          // Current chapter's content leaves.
+          // Current scene exits.
           timeline.to(
             current.querySelector("[data-hero-copy]"),
             {
@@ -483,7 +498,6 @@ export default function CinematicHero() {
             transitionStart,
           );
 
-          // Current artwork fades away.
           timeline.to(
             current,
             {
@@ -494,7 +508,7 @@ export default function CinematicHero() {
             transitionStart + 0.2,
           );
 
-          // Next artwork fades and scales into view.
+          // Next scene enters.
           timeline.fromTo(
             next,
             { autoAlpha: 0 },
@@ -506,20 +520,17 @@ export default function CinematicHero() {
             transitionStart + 0.2,
           );
 
-          if (getImage(next)) {
-            timeline.fromTo(
-              getImage(next),
-              { scale: 1.12 },
-              {
-                scale: 1,
-                duration: 1.2,
-                ease: "none",
-              },
-              transitionStart + 0.2,
-            );
-          }
+          timeline.fromTo(
+            getImage(next),
+            { scale: 1.12 },
+            {
+              scale: 1,
+              duration: 1.2,
+              ease: "none",
+            },
+            transitionStart + 0.2,
+          );
 
-          // Headline, metadata and buttons reveal in sequence.
           timeline.fromTo(
             getRevealItems(next),
             {
@@ -548,15 +559,14 @@ export default function CinematicHero() {
     return () => media.revert();
   }, [chapters]);
 
-  /* ---------------------------------- */
-  /* Mobile transitions                 */
-  /* ---------------------------------- */
+  /* ---------------------------------------
+     Mobile chapter transitions
+  --------------------------------------- */
 
   useLayoutEffect(() => {
-    const image = mobileImageRef.current;
     const content = mobileCopyRef.current;
 
-    if (!image || !content || !mobileChapter) return;
+    if (!content || !mobileChapter) return;
 
     const isMobile = window.matchMedia(
       "(max-width: 767px)",
@@ -568,37 +578,23 @@ export default function CinematicHero() {
 
     if (!isMobile || reducedMotion) return;
 
-    const timeline = gsap.timeline({
-      defaults: { ease: "power2.out" },
-    });
-
-    timeline.fromTo(
-      image,
-      { autoAlpha: 0.5, scale: 1.04 },
-      {
-        autoAlpha: 1,
-        scale: 1,
-        duration: 0.65,
-      },
-    );
-
-    timeline.fromTo(
+    const timeline = gsap.fromTo(
       content,
       { autoAlpha: 0, y: 18 },
       {
         autoAlpha: 1,
         y: 0,
         duration: 0.45,
+        ease: "power2.out",
       },
-      "-=0.3",
     );
 
     return () => timeline.kill();
   }, [mobileIndex, chapters]);
 
-  /* ---------------------------------- */
-  /* Loading and error state            */
-  /* ---------------------------------- */
+  /* ---------------------------------------
+     Loading and error states
+  --------------------------------------- */
 
   if (chapters.length === 0) {
     return (
@@ -643,9 +639,9 @@ export default function CinematicHero() {
     );
   }
 
-  /* ---------------------------------- */
-  /* Render hero                        */
-  /* ---------------------------------- */
+  /* ---------------------------------------
+     Render
+  --------------------------------------- */
 
   return (
     <section
@@ -653,7 +649,7 @@ export default function CinematicHero() {
       aria-label="NEXORA featured games"
       className="relative isolate bg-[#090a0f]"
     >
-      {/* Desktop: cinematic scroll-driven scenes */}
+      {/* Desktop: scroll-driven chapters */}
       <div
         ref={desktopRef}
         className="relative hidden h-[100svh] min-h-[620px] overflow-hidden bg-[#090a0f] md:block"
@@ -666,7 +662,7 @@ export default function CinematicHero() {
           />
         ))}
 
-        {/* Persistent bottom navigation */}
+        {/* Persistent bottom indicators */}
         <div className="pointer-events-none absolute inset-x-0 bottom-7 z-30 mx-auto flex max-w-[1600px] items-center justify-between px-8 lg:px-20">
           <div className="flex items-center gap-3 text-[10px] uppercase tracking-[0.23em] text-white/50">
             <ArrowDown size={14} className="text-violet-300" />
@@ -684,9 +680,7 @@ export default function CinematicHero() {
                 data-chapter-marker
                 aria-hidden="true"
                 className="h-1 rounded-full bg-white/25"
-                style={{
-                  width: index === 0 ? 40 : 16,
-                }}
+                style={{ width: index === 0 ? 40 : 16 }}
               />
             ))}
           </div>
@@ -701,7 +695,6 @@ export default function CinematicHero() {
       <div className="relative flex min-h-[100svh] flex-col justify-end overflow-hidden px-5 pb-8 pt-28 md:hidden">
         <img
           key={mobileChapter.id}
-          ref={mobileImageRef}
           src={mobileChapter.image}
           alt=""
           aria-hidden="true"
@@ -713,7 +706,9 @@ export default function CinematicHero() {
         />
 
         <div className="pointer-events-none absolute inset-0 bg-[#090a0f]/35" />
+
         <div className="pointer-events-none absolute inset-0 bg-gradient-to-r from-[#090a0f]/85 via-[#090a0f]/50 to-transparent" />
+
         <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-[#090a0f] via-[#090a0f]/50 to-[#090a0f]/40" />
 
         <div
@@ -721,7 +716,7 @@ export default function CinematicHero() {
           className="relative z-10 mx-auto w-full max-w-xl"
         >
           <p className="mb-5 flex flex-wrap items-center gap-2 text-[10px] font-bold uppercase tracking-[0.2em] text-violet-300">
-            <Sparkles size={13} />
+            <Gamepad2 size={15} strokeWidth={1.8} />
             CHAPTER {mobileChapter.number}
             <span className="text-white/50">/</span>
             {mobileChapter.genre}
@@ -730,11 +725,9 @@ export default function CinematicHero() {
           <h1 className="break-words text-[clamp(3rem,12vw,5rem)] font-black leading-[0.86] tracking-[-0.075em] text-white">
             <span className="block">{mobileChapter.titleTop}</span>
 
-            {mobileChapter.titleBottom && (
-              <span className="block bg-gradient-to-r from-white to-violet-300 bg-clip-text text-transparent">
-                {mobileChapter.titleBottom}
-              </span>
-            )}
+            <span className="block bg-gradient-to-r from-white to-violet-300 bg-clip-text text-transparent">
+              {mobileChapter.titleBottom}
+            </span>
           </h1>
 
           <h2 className="mt-6 text-[10px] font-bold leading-6 tracking-[0.12em] text-violet-200">
@@ -796,3 +789,4 @@ export default function CinematicHero() {
     </section>
   );
 }
+
