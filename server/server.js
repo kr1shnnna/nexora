@@ -2,6 +2,7 @@
 import express from "express";
 import cors from "cors";
 import dotenv from "dotenv";
+import gamesRouter from "./routes/games.routes.js";
 
 dotenv.config();
 
@@ -17,7 +18,7 @@ app.use(
 
 app.use(express.json());
 
-// Health-check endpoint
+// Health check
 app.get("/api/health", (req, res) => {
   res.status(200).json({
     success: true,
@@ -25,8 +26,10 @@ app.get("/api/health", (req, res) => {
   });
 });
 
+// Game discovery API
+app.use("/api/games", gamesRouter);
+
 // Start server
 app.listen(PORT, () => {
   console.log(`NEXORA API running at http://localhost:${PORT}`);
 });
-
