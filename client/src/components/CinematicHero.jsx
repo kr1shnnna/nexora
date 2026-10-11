@@ -1,58 +1,116 @@
 
-import { useLayoutEffect, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import gsap from "gsap";
 import { ScrollTrigger } from "gsap/ScrollTrigger";
 import {
   ArrowDown,
   ArrowUpRight,
+  Gamepad2,
+  RefreshCw,
   Sparkles,
+  Star,
 } from "lucide-react";
+import { fetchGames } from "../services/gameService";
 
 gsap.registerPlugin(ScrollTrigger);
 
-const chapters = [
-  {
-    id: "eclipse",
-    number: "01",
-    label: "THE UNKNOWN",
-    genre: "SCI-FI RPG",
-    titleTop: "BEYOND",
-    titleBottom: "THE ECLIPSE.",
-    subtitle: "THE UNIVERSE IS NOT WHAT IT SEEMS.",
-    description:
-      "Travel beyond the edge of the known universe. Discover forgotten worlds and uncover the secrets hidden among the stars.",
-    image:
-      "https://images.unsplash.com/photo-1462331940025-496dfbfc7564?auto=format&fit=crop&w=2400&q=85",
-  },
-  {
-    id: "kingdom",
-    number: "02",
-    label: "A WORLD FORGED IN DARKNESS",
-    genre: "DARK FANTASY",
-    titleTop: "KINGDOM",
-    titleBottom: "OF ASH.",
-    subtitle: "EVERY LEGEND HAS A DARK SIDE.",
-    description:
-      "Enter a forgotten realm of ancient ruins, fallen kingdoms, and impossible choices. Your next adventure begins here.",
-    image:
-      "https://images.unsplash.com/photo-1518709268805-4e9042af9f23?auto=format&fit=crop&w=2400&q=85",
-  },
-  {
-    id: "afterlight",
-    number: "03",
-    label: "NOTHING STAYS BURIED",
-    genre: "SURVIVAL ADVENTURE",
-    titleTop: "AFTER",
-    titleBottom: "THE FALL.",
-    subtitle: "THE WORLD ENDED. YOUR STORY DIDN'T.",
-    description:
-      "Step into the unknown. Explore mysterious landscapes, discover lost stories, and find a reason to keep moving forward.",
-    image:
-      "https://images.unsplash.com/photo-1470770841072-f978cf4d019e?auto=format&fit=crop&w=2400&q=85",
-  },
-];
+/* ---------------------------------- */
+/* Game data helpers                  */
+/* ---------------------------------- */
+
+function splitGameTitle(title = "DISCOVER GAMES") {
+  const words = title.trim().toUpperCase().split(/\s+/).filter(Boolean);
+
+  if (words.length <= 1) {
+    return {
+      titleTop: words[0] || "DISCOVER",
+      titleBottom: "",
+    };
+  }
+
+  let bestSplit = 1;
+  let bestDifference = Infinity;
+
+  for (let index = 1; index < words.length; index++) {
+    const firstLine = words.slice(0, index).join(" ");
+    const secondLine = words.slice(index).join(" ");
+    const difference = Math.abs(firstLine.length - secondLine.length);
+
+    if (difference < bestDifference) {
+      bestDifference = difference;
+      bestSplit = index;
+    }
+  }
+
+  return {
+    titleTop: words.slice(0, bestSplit).join(" "),
+    titleBottom: words.slice(bestSplit).join(" "),
+  };
+}
+
+function createFeaturedChapters(games = []) {
+  const candidates = games.filter(
+    (game) => game.name && game.backgroundImage,
+  );
+
+  const selected = [];
+  const usedGenres = new Set();
+
+  // Prefer different genres for the cinematic chapters.
+  for (const game of candidates) {
+    const primaryGenre = game.genres?.[0]?.slug;
+
+    if (!primaryGenre || !usedGenres.has(primaryGenre)) {
+      selected.push(game);
+
+      if (primaryGenre) {
+        usedGenres.add(primaryGenre);
+      }
+    }
+
+    if (selected.length === 3) break;
+  }
+
+  // Fill remaining chapters when genre diversity is limited.
+  for (const game of candidates) {
+    if (selected.length === 3) break;
+
+    if (!selected.some((item) => item.id === game.id)) {
+      selected.push(game);
+    }
+  }
+
+  return selected.map((game, index) => {
+    const title = splitGameTitle(game.name);
+
+    return {
+      id: game.id,
+      slug: game.slug,
+      number: String(index + 1).padStart(2, "0"),
+      label: "FEATURED GAME",
+      genre:
+        game.genres
+          ?.slice(0, 2)
+          .map((genre) => genre.name)
+          .join(" / ") || "VIDEO GAME",
+      rating: game.rating,
+      releaseDate: game.released,
+      image: game.backgroundImage,
+      titleTop: title.titleTop,
+      titleBottom: title.titleBottom,
+      subtitle: "DISCOVER YOUR NEXT OBSESSION.",
+      description: `Discover ${game.name}, explore its genres, and find out what makes this game worth your attention.`,
+    };
+  });
+}
+
+/* ---------------------------------- */
+/* Desktop chapter                    */
+/* ---------------------------------- */
 
 function HeroScene({ chapter, index }) {
+  const hasRating = Number(chapter.rating) > 0;
+
   return (
     <article
       data-hero-scene
@@ -60,8 +118,9 @@ function HeroScene({ chapter, index }) {
         index === 0 ? "opacity-100" : "opacity-0"
       }`}
       style={{ zIndex: index + 1 }}
+      aria-label={`Featured game: ${chapter.titleTop} ${chapter.titleBottom}`}
     >
-      {/* Scene artwork */}
+      {/* Background artwork */}
       <img
         data-hero-image
         src={chapter.image}
@@ -69,27 +128,32 @@ function HeroScene({ chapter, index }) {
         aria-hidden="true"
         fetchPriority={index === 0 ? "high" : "auto"}
         className="absolute inset-0 h-full w-full scale-[1.1] object-cover object-center"
+        onError={(event) => {
+          event.currentTarget.style.display = "none";
+        }}
       />
 
-      {/* Color grading */}
-      <div className="absolute inset-0 bg-black/20" />
+      {/* Cinematic color grading */}
+      <div className="pointer-events-none absolute inset-0 bg-black/25" />
 
-      <div className="absolute inset-0 bg-gradient-to-r from-[#090a0f] via-[#090a0f]/75 to-[#090a0f]/15" />
+      <div className="pointer-events-none absolute inset-0 bg-gradient-to-r from-[#090a0f] via-[#090a0f]/75 to-[#090a0f]/15" />
 
-      <div className="absolute inset-0 bg-gradient-to-t from-[#090a0f] via-transparent to-[#090a0f]/55" />
+      <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-[#090a0f] via-transparent to-[#090a0f]/55" />
 
-      {/* Ambient light */}
-      <div className="pointer-events-none absolute -right-40 top-1/4 h-[500px] w-[500px] rounded-full bg-violet-600/[0.12] blur-[150px]" />
+      {/* Atmospheric glow */}
+      <div className="pointer-events-none absolute -right-40 top-1/4 h-[450px] w-[450px] rounded-full bg-violet-600/10 blur-[140px]" />
 
-      {/* Scene content */}
-      <div className="relative z-10 mx-auto flex h-full w-full max-w-[1600px] items-center px-6 pb-12 pt-24 sm:px-10 lg:px-20">
-        <div data-hero-copy className="max-w-4xl">
+      {/* Chapter content */}
+      <div className="relative z-10 mx-auto flex h-full w-full max-w-[1600px] items-center px-6 pb-14 pt-24 sm:px-10 lg:px-20">
+        <div data-hero-copy className="w-full max-w-4xl">
+          {/* Chapter label */}
           <div
             data-reveal
             className="mb-7 flex flex-wrap items-center gap-3"
           >
             <span className="flex items-center gap-2 rounded-full border border-violet-300/20 bg-violet-300/[0.08] px-3.5 py-2 backdrop-blur-lg">
               <Sparkles size={13} className="text-violet-300" />
+
               <span className="text-[10px] font-bold uppercase tracking-[0.2em] text-violet-200 sm:text-xs">
                 CHAPTER {chapter.number}
               </span>
@@ -97,36 +161,56 @@ function HeroScene({ chapter, index }) {
 
             <span className="hidden h-px w-9 bg-white/30 sm:block" />
 
-            <span className="text-[10px] uppercase tracking-[0.2em] text-white/60 sm:text-xs">
+            <span className="text-[10px] uppercase tracking-[0.18em] text-white/60 sm:text-xs">
               {chapter.genre}
             </span>
+
+            {hasRating && (
+              <span className="inline-flex items-center gap-1.5 text-xs text-zinc-300">
+                <Star
+                  size={13}
+                  fill="currentColor"
+                  className="text-violet-300"
+                />
+                {Number(chapter.rating).toFixed(1)}
+                <span className="text-zinc-500">RAWG</span>
+              </span>
+            )}
           </div>
 
+          {/* Eyebrow */}
           <p
             data-reveal
-            className="mb-4 text-[10px] font-bold uppercase tracking-[0.3em] text-violet-300 sm:text-xs"
+            className="mb-4 text-[10px] font-bold uppercase tracking-[0.28em] text-violet-300 sm:text-xs"
           >
             {chapter.label}
           </p>
 
-          <h2
-            data-reveal
-            className="text-[clamp(3.25rem,8vw,8rem)] font-black leading-[0.84] tracking-[-0.075em] text-white"
-          >
-            {chapter.titleTop}
-            <br />
-            <span className="bg-gradient-to-r from-white via-white to-violet-300 bg-clip-text text-transparent">
-              {chapter.titleBottom}
+          {/* Each title line can animate separately */}
+          <h1 className="max-w-5xl break-words text-[clamp(3rem,7.8vw,7.5rem)] font-black leading-[0.87] tracking-[-0.075em] text-white">
+            <span data-reveal-line className="block">
+              {chapter.titleTop}
             </span>
-          </h2>
 
-          <h3
+            {chapter.titleBottom && (
+              <span
+                data-reveal-line
+                className="block bg-gradient-to-r from-white via-white to-violet-300 bg-clip-text text-transparent"
+              >
+                {chapter.titleBottom}
+              </span>
+            )}
+          </h1>
+
+          {/* Tagline */}
+          <h2
             data-reveal
             className="mt-6 text-[10px] font-bold leading-6 tracking-[0.13em] text-violet-200 sm:text-sm"
           >
             {chapter.subtitle}
-          </h3>
+          </h2>
 
+          {/* Description */}
           <p
             data-reveal
             className="mt-4 max-w-lg text-sm leading-7 text-zinc-300 sm:text-base sm:leading-8"
@@ -134,12 +218,14 @@ function HeroScene({ chapter, index }) {
             {chapter.description}
           </p>
 
+          {/* CTA buttons */}
           <div data-reveal className="mt-8 flex flex-wrap gap-3 sm:mt-9">
             <a
               href="#discover"
               className="group inline-flex min-h-12 items-center justify-center gap-3 rounded-md bg-violet-500 px-5 py-3 text-sm font-bold text-white transition-all duration-300 hover:-translate-y-0.5 hover:bg-violet-400 focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-violet-300 sm:px-6"
             >
               Explore Games
+
               <ArrowUpRight
                 size={18}
                 className="transition-transform duration-300 group-hover:-translate-y-0.5 group-hover:translate-x-0.5"
@@ -160,26 +246,93 @@ function HeroScene({ chapter, index }) {
   );
 }
 
+/* ---------------------------------- */
+/* Main cinematic hero                */
+/* ---------------------------------- */
+
 export default function CinematicHero() {
   const desktopRef = useRef(null);
   const mobileCopyRef = useRef(null);
+  const mobileImageRef = useRef(null);
 
+  const [chapters, setChapters] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
+  const [retryKey, setRetryKey] = useState(0);
   const [mobileIndex, setMobileIndex] = useState(0);
+
   const mobileChapter = chapters[mobileIndex];
 
-  /*
-   * Desktop: scroll-controlled cinematic chapters.
-   */
+  /* ---------------------------------- */
+  /* Fetch games from our Express API   */
+  /* ---------------------------------- */
+
+  useEffect(() => {
+    const controller = new AbortController();
+
+    async function loadFeaturedGames() {
+      setLoading(true);
+      setError("");
+
+      try {
+        const data = await fetchGames({
+          page: 1,
+          pageSize: 20,
+          ordering: "-rating",
+          signal: controller.signal,
+        });
+
+        const featured = createFeaturedChapters(data.results ?? []);
+
+        if (featured.length === 0) {
+          throw new Error("No games with artwork were returned.");
+        }
+
+        if (!controller.signal.aborted) {
+          setChapters(featured);
+          setMobileIndex(0);
+        }
+      } catch (err) {
+        if (controller.signal.aborted || err.name === "AbortError") {
+          return;
+        }
+
+        setError(
+          err.message || "Unable to load featured games right now.",
+        );
+      } finally {
+        if (!controller.signal.aborted) {
+          setLoading(false);
+        }
+      }
+    }
+
+    loadFeaturedGames();
+
+    return () => controller.abort();
+  }, [retryKey]);
+
+  /* ---------------------------------- */
+  /* Desktop GSAP / ScrollTrigger       */
+  /* ---------------------------------- */
+
   useLayoutEffect(() => {
     const pin = desktopRef.current;
 
-    if (!pin) return;
+    if (!pin || chapters.length === 0) return;
 
     const media = gsap.matchMedia();
 
     media.add(
-      "(min-width: 768px) and (prefers-reduced-motion: no-preference)",
-      () => {
+      {
+        desktop: "(min-width: 768px)",
+        reducedMotion: "(prefers-reduced-motion: reduce)",
+      },
+      (context) => {
+        const { desktop, reducedMotion } = context.conditions;
+
+        if (!desktop) return;
+
         const scenes = Array.from(
           pin.querySelectorAll("[data-hero-scene]"),
         );
@@ -188,19 +341,26 @@ export default function CinematicHero() {
           pin.querySelectorAll("[data-chapter-marker]"),
         );
 
-        if (!scenes.length) return;
+        if (scenes.length === 0) return;
 
         const getRevealItems = (scene) =>
-          Array.from(scene.querySelectorAll("[data-reveal]"));
+          Array.from(
+            scene.querySelectorAll(
+              "[data-reveal], [data-reveal-line]",
+            ),
+          );
 
         const getImage = (scene) =>
           scene.querySelector("[data-hero-image]");
 
-        // Establish the starting state before the browser paints.
+        // Establish a consistent initial state.
         gsap.set(scenes, { autoAlpha: 0 });
 
         scenes.forEach((scene) => {
-          gsap.set(getImage(scene), { scale: 1.1 });
+          if (getImage(scene)) {
+            gsap.set(getImage(scene), { scale: 1.1 });
+          }
+
           gsap.set(getRevealItems(scene), {
             autoAlpha: 0,
             y: 26,
@@ -209,21 +369,38 @@ export default function CinematicHero() {
 
         gsap.set(scenes[0], { autoAlpha: 1 });
 
-        // Opening reveal: independent of scrolling.
+        // Show a complete static scene when motion is reduced.
+        if (reducedMotion) {
+          gsap.set(getRevealItems(scenes[0]), {
+            clearProps: "all",
+          });
+
+          if (getImage(scenes[0])) {
+            gsap.set(getImage(scenes[0]), {
+              clearProps: "transform",
+            });
+          }
+
+          return;
+        }
+
+        /* Opening reveal */
         const intro = gsap.timeline({
           defaults: { ease: "power3.out" },
         });
 
-        intro.fromTo(
-          getImage(scenes[0]),
-          { scale: 1.12 },
-          {
-            scale: 1,
-            duration: 2,
-            ease: "power2.out",
-          },
-          0,
-        );
+        if (getImage(scenes[0])) {
+          intro.fromTo(
+            getImage(scenes[0]),
+            { scale: 1.12 },
+            {
+              scale: 1,
+              duration: 2,
+              ease: "power2.out",
+            },
+            0,
+          );
+        }
 
         intro.to(
           getRevealItems(scenes[0]),
@@ -236,8 +413,16 @@ export default function CinematicHero() {
           0.12,
         );
 
-        // Chapter progress indicators.
+        /* Progress indicators */
         let activeChapter = 0;
+
+        markers.forEach((marker, index) => {
+          gsap.set(marker, {
+            width: index === 0 ? 40 : 16,
+            backgroundColor:
+              index === 0 ? "#a78bfa" : "rgba(255,255,255,0.25)",
+          });
+        });
 
         const updateMarkers = (index) => {
           if (index === activeChapter) return;
@@ -247,21 +432,19 @@ export default function CinematicHero() {
           markers.forEach((marker, markerIndex) => {
             const active = markerIndex === index;
 
-            marker.classList.toggle("bg-violet-400", active);
-            marker.classList.toggle("bg-white/25", !active);
-            marker.classList.toggle("w-10", active);
-            marker.classList.toggle("w-4", !active);
+            gsap.to(marker, {
+              width: active ? 40 : 16,
+              backgroundColor: active
+                ? "#a78bfa"
+                : "rgba(255,255,255,0.25)",
+              duration: 0.25,
+              ease: "power2.out",
+              overwrite: "auto",
+            });
           });
         };
 
-        markers.forEach((marker, index) => {
-          marker.classList.toggle("bg-violet-400", index === 0);
-          marker.classList.toggle("bg-white/25", index !== 0);
-          marker.classList.toggle("w-10", index === 0);
-          marker.classList.toggle("w-4", index !== 0);
-        });
-
-        // One timeline controls every scene transition.
+        /* Scroll-controlled chapter transitions */
         const timeline = gsap.timeline({
           scrollTrigger: {
             trigger: pin,
@@ -273,10 +456,10 @@ export default function CinematicHero() {
             invalidateOnRefresh: true,
 
             onUpdate: (self) => {
-              const progress = self.progress;
-
-              const index =
-                progress < 0.32 ? 0 : progress < 0.72 ? 1 : 2;
+              const index = Math.min(
+                scenes.length - 1,
+                Math.floor(self.progress * scenes.length),
+              );
 
               updateMarkers(index);
             },
@@ -286,53 +469,57 @@ export default function CinematicHero() {
         for (let index = 0; index < scenes.length - 1; index++) {
           const current = scenes[index];
           const next = scenes[index + 1];
-          const transitionStart = 0.7 + index * 1.4;
+          const transitionStart = 0.9 + index * 1.4;
 
-          // Current chapter exits.
+          // Current chapter's content leaves.
           timeline.to(
             current.querySelector("[data-hero-copy]"),
             {
               autoAlpha: 0,
-              y: -20,
-              duration: 0.4,
+              y: -22,
+              duration: 0.45,
               ease: "power2.in",
             },
             transitionStart,
           );
 
+          // Current artwork fades away.
           timeline.to(
             current,
             {
               autoAlpha: 0,
-              duration: 0.8,
+              duration: 0.75,
               ease: "power1.inOut",
             },
-            transitionStart + 0.15,
+            transitionStart + 0.2,
           );
 
-          // Next chapter enters.
+          // Next artwork fades and scales into view.
           timeline.fromTo(
             next,
             { autoAlpha: 0 },
             {
               autoAlpha: 1,
-              duration: 0.8,
+              duration: 0.75,
               ease: "power1.inOut",
             },
-            transitionStart + 0.15,
+            transitionStart + 0.2,
           );
 
-          timeline.fromTo(
-            getImage(next),
-            { scale: 1.12 },
-            {
-              scale: 1,
-              duration: 1.3,
-              ease: "none",
-            },
-            transitionStart + 0.15,
-          );
+          if (getImage(next)) {
+            timeline.fromTo(
+              getImage(next),
+              { scale: 1.12 },
+              {
+                scale: 1,
+                duration: 1.2,
+                ease: "none",
+              },
+              transitionStart + 0.2,
+            );
+          }
 
+          // Headline, metadata and buttons reveal in sequence.
           timeline.fromTo(
             getRevealItems(next),
             {
@@ -342,11 +529,11 @@ export default function CinematicHero() {
             {
               autoAlpha: 1,
               y: 0,
-              duration: 0.5,
-              stagger: 0.08,
+              duration: 0.55,
+              stagger: 0.075,
               ease: "power2.out",
             },
-            transitionStart + 0.48,
+            transitionStart + 0.55,
           );
         }
 
@@ -358,72 +545,115 @@ export default function CinematicHero() {
       },
     );
 
-    // Respect visitors who prefer reduced motion.
-    media.add(
-      "(min-width: 768px) and (prefers-reduced-motion: reduce)",
-      () => {
-        const scenes = Array.from(
-          pin.querySelectorAll("[data-hero-scene]"),
-        );
-
-        gsap.set(scenes, { autoAlpha: 0 });
-
-        if (scenes[0]) {
-          gsap.set(scenes[0], { autoAlpha: 1 });
-          gsap.set(
-            scenes[0].querySelectorAll("[data-reveal]"),
-            { clearProps: "all" },
-          );
-          gsap.set(
-            scenes[0].querySelector("[data-hero-image]"),
-            { clearProps: "transform" },
-          );
-        }
-      },
-    );
-
     return () => media.revert();
-  }, []);
+  }, [chapters]);
 
-  /*
-   * Mobile: animate content changes without pinning the page.
-   */
+  /* ---------------------------------- */
+  /* Mobile transitions                 */
+  /* ---------------------------------- */
+
   useLayoutEffect(() => {
+    const image = mobileImageRef.current;
     const content = mobileCopyRef.current;
 
-    if (!content) return;
-
-    const reducedMotion = window.matchMedia(
-      "(prefers-reduced-motion: reduce)",
-    ).matches;
+    if (!image || !content || !mobileChapter) return;
 
     const isMobile = window.matchMedia(
       "(max-width: 767px)",
     ).matches;
 
-    if (reducedMotion || !isMobile) return;
+    const reducedMotion = window.matchMedia(
+      "(prefers-reduced-motion: reduce)",
+    ).matches;
 
-    const tween = gsap.fromTo(
+    if (!isMobile || reducedMotion) return;
+
+    const timeline = gsap.timeline({
+      defaults: { ease: "power2.out" },
+    });
+
+    timeline.fromTo(
+      image,
+      { autoAlpha: 0.5, scale: 1.04 },
+      {
+        autoAlpha: 1,
+        scale: 1,
+        duration: 0.65,
+      },
+    );
+
+    timeline.fromTo(
       content,
-      { autoAlpha: 0, y: 16 },
+      { autoAlpha: 0, y: 18 },
       {
         autoAlpha: 1,
         y: 0,
         duration: 0.45,
-        ease: "power2.out",
       },
+      "-=0.3",
     );
 
-    return () => tween.kill();
-  }, [mobileIndex]);
+    return () => timeline.kill();
+  }, [mobileIndex, chapters]);
+
+  /* ---------------------------------- */
+  /* Loading and error state            */
+  /* ---------------------------------- */
+
+  if (chapters.length === 0) {
+    return (
+      <section
+        id="home"
+        className="flex min-h-[100svh] items-center justify-center bg-[#090a0f] px-6 pt-24"
+      >
+        <div className="max-w-md text-center">
+          <Gamepad2
+            size={34}
+            className="mx-auto mb-5 text-violet-400"
+          />
+
+          <p className="text-xs font-bold uppercase tracking-[0.25em] text-violet-300">
+            {loading
+              ? "DISCOVERING WORLDS..."
+              : "THE UNIVERSE IS UNAVAILABLE"}
+          </p>
+
+          {loading && (
+            <div className="mx-auto mt-6 h-8 w-8 animate-spin rounded-full border-2 border-violet-400/25 border-t-violet-400" />
+          )}
+
+          {error && (
+            <>
+              <p className="mt-4 text-sm leading-7 text-zinc-400">
+                {error}
+              </p>
+
+              <button
+                type="button"
+                onClick={() => setRetryKey((key) => key + 1)}
+                className="mt-6 inline-flex items-center gap-2 rounded-md bg-violet-500 px-5 py-3 text-sm font-semibold text-white transition-colors hover:bg-violet-400"
+              >
+                <RefreshCw size={15} />
+                Try again
+              </button>
+            </>
+          )}
+        </div>
+      </section>
+    );
+  }
+
+  /* ---------------------------------- */
+  /* Render hero                        */
+  /* ---------------------------------- */
 
   return (
     <section
       id="home"
-      aria-label="NEXORA featured game showcase"
+      aria-label="NEXORA featured games"
       className="relative isolate bg-[#090a0f]"
     >
-      {/* Desktop cinematic showcase */}
+      {/* Desktop: cinematic scroll-driven scenes */}
       <div
         ref={desktopRef}
         className="relative hidden h-[100svh] min-h-[620px] overflow-hidden bg-[#090a0f] md:block"
@@ -436,8 +666,8 @@ export default function CinematicHero() {
           />
         ))}
 
-        {/* Persistent chapter indicator */}
-        <div className="pointer-events-none absolute inset-x-0 bottom-7 z-20 mx-auto flex max-w-[1600px] items-center justify-between px-8 lg:px-20">
+        {/* Persistent bottom navigation */}
+        <div className="pointer-events-none absolute inset-x-0 bottom-7 z-30 mx-auto flex max-w-[1600px] items-center justify-between px-8 lg:px-20">
           <div className="flex items-center gap-3 text-[10px] uppercase tracking-[0.23em] text-white/50">
             <ArrowDown size={14} className="text-violet-300" />
             Scroll to explore
@@ -453,11 +683,10 @@ export default function CinematicHero() {
                 key={chapter.id}
                 data-chapter-marker
                 aria-hidden="true"
-                className={`h-1 rounded-full transition-all duration-300 ${
-                  index === 0
-                    ? "w-10 bg-violet-400"
-                    : "w-4 bg-white/25"
-                }`}
+                className="h-1 rounded-full bg-white/25"
+                style={{
+                  width: index === 0 ? 40 : 16,
+                }}
               />
             ))}
           </div>
@@ -468,36 +697,44 @@ export default function CinematicHero() {
         </div>
       </div>
 
-      {/* Mobile: natural scrolling, manually selected chapters */}
+      {/* Mobile: natural scrolling and selectable chapters */}
       <div className="relative flex min-h-[100svh] flex-col justify-end overflow-hidden px-5 pb-8 pt-28 md:hidden">
         <img
           key={mobileChapter.id}
-          src={mobileChapter.image.replace("w=2400", "w=1100")}
+          ref={mobileImageRef}
+          src={mobileChapter.image}
           alt=""
           aria-hidden="true"
           fetchPriority="high"
           className="absolute inset-0 h-full w-full object-cover"
+          onError={(event) => {
+            event.currentTarget.style.display = "none";
+          }}
         />
 
-        <div className="absolute inset-0 bg-[#090a0f]/35" />
-        <div className="absolute inset-0 bg-gradient-to-r from-[#090a0f]/85 via-[#090a0f]/50 to-transparent" />
-        <div className="absolute inset-0 bg-gradient-to-t from-[#090a0f] via-[#090a0f]/50 to-[#090a0f]/45" />
+        <div className="pointer-events-none absolute inset-0 bg-[#090a0f]/35" />
+        <div className="pointer-events-none absolute inset-0 bg-gradient-to-r from-[#090a0f]/85 via-[#090a0f]/50 to-transparent" />
+        <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-[#090a0f] via-[#090a0f]/50 to-[#090a0f]/40" />
 
         <div
           ref={mobileCopyRef}
           className="relative z-10 mx-auto w-full max-w-xl"
         >
-          <p className="mb-5 flex items-center gap-2 text-[10px] font-bold uppercase tracking-[0.23em] text-violet-300">
+          <p className="mb-5 flex flex-wrap items-center gap-2 text-[10px] font-bold uppercase tracking-[0.2em] text-violet-300">
             <Sparkles size={13} />
-            Chapter {mobileChapter.number} · {mobileChapter.genre}
+            CHAPTER {mobileChapter.number}
+            <span className="text-white/50">/</span>
+            {mobileChapter.genre}
           </p>
 
-          <h1 className="text-[clamp(3.4rem,13vw,5.5rem)] font-black leading-[0.85] tracking-[-0.075em] text-white">
-            {mobileChapter.titleTop}
-            <br />
-            <span className="bg-gradient-to-r from-white to-violet-300 bg-clip-text text-transparent">
-              {mobileChapter.titleBottom}
-            </span>
+          <h1 className="break-words text-[clamp(3rem,12vw,5rem)] font-black leading-[0.86] tracking-[-0.075em] text-white">
+            <span className="block">{mobileChapter.titleTop}</span>
+
+            {mobileChapter.titleBottom && (
+              <span className="block bg-gradient-to-r from-white to-violet-300 bg-clip-text text-transparent">
+                {mobileChapter.titleBottom}
+              </span>
+            )}
           </h1>
 
           <h2 className="mt-6 text-[10px] font-bold leading-6 tracking-[0.12em] text-violet-200">
@@ -508,6 +745,20 @@ export default function CinematicHero() {
             {mobileChapter.description}
           </p>
 
+          {Number(mobileChapter.rating) > 0 && (
+            <p className="mt-4 flex items-center gap-2 text-sm text-zinc-300">
+              <Star
+                size={15}
+                fill="currentColor"
+                className="text-violet-300"
+              />
+              {Number(mobileChapter.rating).toFixed(1)}
+              <span className="text-xs text-zinc-500">
+                RAWG rating
+              </span>
+            </p>
+          )}
+
           <a
             href="#discover"
             className="mt-7 inline-flex min-h-12 items-center gap-3 rounded-md bg-violet-500 px-5 py-3 text-sm font-bold text-white transition-colors hover:bg-violet-400"
@@ -516,6 +767,7 @@ export default function CinematicHero() {
             <ArrowUpRight size={18} />
           </a>
 
+          {/* Mobile chapter selector */}
           <div className="mt-9 border-t border-white/15 pt-5">
             <p className="mb-3 text-[10px] uppercase tracking-[0.2em] text-white/50">
               Choose your next world
