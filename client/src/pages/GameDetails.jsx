@@ -100,6 +100,103 @@ function stripMarkup(value = "") {
     .trim();
 }
 
+
+function parseSystemRequirements(raw = "") {
+  let text = stripMarkup(raw)
+    .replace(/^(minimum|required|recommended)\s*:\s*/i, "")
+    .replace(/\s+/g, " ")
+    .trim();
+
+  if (!text) {
+    return { rows: [], notes: "" };
+  }
+
+  /*
+   * RAWG sometimes concatenates labels like:
+   * "Windows 10Processor: Intel...Memory: 8 GB RAMGraphics: ..."
+   *
+   * Insert boundaries before known requirement labels.
+   */
+  text = text.replace(
+    /(?=(?:Operating System|Processor|Memory|Graphics|Video Card|DirectX|Storage|Disk Space|Sound Card|Additional Notes|CPU|RAM|GPU)\s*:)/gi,
+    " ",
+  );
+
+  const pattern =
+    /\b(Operating System|OS|Processor|CPU|Memory|RAM|Graphics|Video Card|GPU|DirectX|Storage|Disk Space|Sound Card|Additional Notes)\s*:/gi;
+
+  const matches = [...text.matchAll(pattern)];
+
+  if (matches.length === 0) {
+    return {
+      rows: [{ label: "Requirements", value: text }],
+      notes: "",
+    };
+  }
+
+  const labelMap = {
+    "operating system": "Operating system",
+    os: "Operating system",
+    processor: "Processor",
+    cpu: "Processor",
+    memory: "Memory",
+    ram: "Memory",
+    graphics: "Graphics",
+    "video card": "Graphics",
+    gpu: "Graphics",
+    directx: "DirectX",
+    storage: "Storage",
+    "disk space": "Storage",
+    "sound card": "Sound card",
+  };
+
+  const values = new Map();
+  let notes = "";
+
+  matches.forEach((match, index) => {
+    const nextMatch = matches[index + 1];
+
+    const valueStart = match.index + match[0].length;
+    const valueEnd = nextMatch
+      ? nextMatch.index
+      : text.length;
+
+    const value = text
+      .slice(valueStart, valueEnd)
+      .replace(/\s+/g, " ")
+      .trim();
+
+    const sourceLabel = match[1].toLowerCase();
+
+    if (sourceLabel === "additional notes") {
+      notes = value;
+      return;
+    }
+
+    const label = labelMap[sourceLabel];
+
+    if (label && value) {
+      // Merge duplicate aliases, such as CPU and Processor.
+      values.set(
+        label,
+        values.has(label)
+          ? `${values.get(label)} / ${value}`
+          : value,
+      );
+    }
+  });
+
+  return {
+    rows: [...values.entries()].map(([label, value]) => ({
+      label,
+      value,
+    })),
+    notes,
+  };
+}
+
+
+
 /*
  * Fictional showcase prices only.
  * These are not official store prices.
@@ -441,16 +538,23 @@ export default function GameDetails() {
 
   const requirements = pcPlatform?.requirements;
 
-  const systemRequirements = [
-    {
-      label: "Minimum requirements",
-      value: stripMarkup(requirements?.minimum ?? ""),
-    },
-    {
-      label: "Recommended requirements",
-      value: stripMarkup(requirements?.recommended ?? ""),
-    },
-  ].filter((item) => item.value);
+ 
+  
+const systemRequirements = [
+  {
+    label: "Minimum requirements",
+    data: parseSystemRequirements(requirements?.minimum ?? ""),
+  },
+  {
+    label: "Recommended requirements",
+    data: parseSystemRequirements(requirements?.recommended ?? ""),
+  },
+].filter(
+  (item) =>
+    item.data.rows.length > 0 || item.data.notes,
+);
+
+
 
   const platforms = (game.platforms ?? []).map(
     (platform) => platform.name,
@@ -825,50 +929,89 @@ export default function GameDetails() {
           </section>
 
           {/* System requirements */}
-          <section id="system-requirements">
-            <SectionHeading
-              eyebrow="CHECK YOUR SETUP"
-              title="System Requirements"
-            >
-              Available PC requirements supplied with the game metadata.
-            </SectionHeading>
+        
+        
+<section id="system-requirements">
+  <SectionHeading
+    eyebrow="CHECK YOUR SETUP"
+    title="System Requirements"
+  >
+    Check the hardware specifications before you dive in.
+  </SectionHeading>
 
-            {systemRequirements.length > 0 ? (
-              <div className="grid gap-4 md:grid-cols-2">
-                {systemRequirements.map((item) => (
-                  <div
-                    key={item.label}
-                    className="rounded-xl border border-white/[0.08] bg-[#11121a] p-5 sm:p-6"
-                  >
-                    <h3 className="mb-4 text-sm font-bold text-white">
-                      {item.label}
-                    </h3>
+  {systemRequirements.length > 0 ? (
+    <div className="grid gap-4 xl:grid-cols-2">
+      {systemRequirements.map((requirement) => (
+        <div
+          key={requirement.label}
+          className="overflow-hidden rounded-xl border border-white/[0.08] bg-[#11121a]"
+        >
+          {/* Card heading */}
+          <div className="flex items-center gap-3 border-b border-white/[0.08] px-4 py-4 sm:px-5">
+            <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-violet-500/10 text-violet-300">
+              <Monitor size={18} />
+            </div>
 
-                    <p className="whitespace-pre-line break-words text-xs leading-7 text-zinc-400 sm:text-sm">
-                      {item.value}
-                    </p>
-                  </div>
-                ))}
+            <div>
+              <h3 className="text-sm font-bold text-white">
+                {requirement.label}
+              </h3>
+              <p className="mt-1 text-[10px] uppercase tracking-[0.18em] text-zinc-500">
+                PC specifications
+              </p>
+            </div>
+          </div>
+
+          {/* Requirement rows */}
+          <dl className="divide-y divide-white/[0.06] px-4 sm:px-5">
+            {requirement.data.rows.map((row) => (
+              <div
+                key={row.label}
+                className="grid grid-cols-[100px_minmax(0,1fr)] gap-3 py-4 sm:grid-cols-[125px_minmax(0,1fr)] sm:gap-5"
+              >
+                <dt className="text-xs font-medium text-zinc-500">
+                  {row.label}
+                </dt>
+
+                <dd className="break-words text-xs leading-6 text-zinc-200 sm:text-sm">
+                  {row.value}
+                </dd>
               </div>
-            ) : (
-              <div className="rounded-xl border border-white/[0.08] bg-[#11121a] p-6">
-                <Monitor
-                  size={24}
-                  className="mb-4 text-violet-300"
-                />
+            ))}
+          </dl>
 
-                <p className="font-semibold text-white">
-                  Requirements unavailable
-                </p>
+          {/* Long notes don't dominate the section */}
+          {requirement.data.notes && (
+            <details className="border-t border-white/[0.06] px-4 py-4 sm:px-5">
+              <summary className="cursor-pointer text-xs font-medium text-violet-300 transition-colors hover:text-violet-200">
+                Additional notes
+              </summary>
 
-                <p className="mt-2 text-sm leading-7 text-zinc-400">
-                  PC system requirements were not supplied for this
-                  game. Check the publisher's official website for
-                  verified specifications.
-                </p>
-              </div>
-            )}
-          </section>
+              <p className="mt-3 whitespace-pre-line break-words text-xs leading-6 text-zinc-400">
+                {requirement.data.notes}
+              </p>
+            </details>
+          )}
+        </div>
+      ))}
+    </div>
+  ) : (
+    <div className="rounded-xl border border-white/[0.08] bg-[#11121a] p-6">
+      <Monitor size={24} className="mb-4 text-violet-300" />
+
+      <p className="font-semibold text-white">
+        Requirements unavailable
+      </p>
+
+      <p className="mt-2 text-sm leading-7 text-zinc-400">
+        System specifications are not available for this game.
+        Check the publisher's website for verified requirements.
+      </p>
+    </div>
+  )}
+</section>
+
+
 
           {/* Recommendations */}
           {relatedGames.length > 0 && (
