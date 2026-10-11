@@ -18,7 +18,8 @@ export default function GameCard({ game }) {
   return (
     <article className="group min-w-0">
       {/* Artwork */}
-      <div className="relative aspect-[4/5] overflow-hidden rounded-xl border border-white/[0.07] bg-gradient-to-br from-[#242035] to-[#11121a]">
+      
+      <div className="relative aspect-[16/10] overflow-hidden rounded-xl border border-white/[0.07] bg-gradient-to-br from-[#242035] to-[#11121a]">
         {game.backgroundImage && (
           <img
             src={game.backgroundImage}
