@@ -10,6 +10,62 @@ import {
 import { fetchGames } from "../services/gameService";
 import GameCard from "./GameCard";
 
+/*
+ * Normalize titles so different editions of the same game
+ * are treated as one game in the discovery grid.
+ */
+
+
+function getCanonicalTitle(title = "") {
+  const normalized = title
+    .toLowerCase()
+    .normalize("NFKD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[^\p{L}\p{N}]+/gu, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+
+  /*
+   * Collapse The Witcher 3 variants and expansions
+   * into one canonical game title.
+   */
+  if (/\bwitcher 3\b/.test(normalized)) {
+    return "the witcher 3 wild hunt";
+  }
+
+  /*
+   * Collapse common editions and DLC labels for other games.
+   */
+  return normalized
+    .replace(
+      /\b(complete edition|definitive edition|game of the year edition|game of the year|goty edition|goty|deluxe edition|ultimate edition|gold edition|enhanced edition|collector s edition|special edition|standard edition|anniversary edition|director s cut|remastered|remaster|redux|expansion pass|season pass|soundtrack|bundle|dlc|expansion|edition)\b/g,
+      " ",
+    )
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+
+
+/*
+ * Keep the first occurrence of each canonical title.
+ */
+function getUniqueGames(games) {
+  const seen = new Set();
+
+  return games.filter((game) => {
+    const titleKey = getCanonicalTitle(game.name);
+
+    // Skip missing titles and repeated entries.
+    if (!titleKey || seen.has(titleKey)) {
+      return false;
+    }
+
+    seen.add(titleKey);
+    return true;
+  });
+}
+
 function GameCardSkeleton() {
   return (
     <div className="animate-pulse">
@@ -39,15 +95,21 @@ export default function TrendingGames({
       try {
         const data = await fetchGames({
           page: 1,
-          pageSize: 8,
+
+          // Fetch more candidates so editions can be removed
+          // before selecting the eight games to display.
+          pageSize: 40,
+
           ordering: "-rating",
           genres: selectedGenre?.slug ?? "",
           signal: controller.signal,
         });
 
-        if (!controller.signal.aborted) {
-          setGames(data.results ?? []);
-        }
+        if (controller.signal.aborted) return;
+
+        const uniqueGames = getUniqueGames(data.results ?? []);
+
+        setGames(uniqueGames.slice(0, 8));
       } catch (err) {
         if (
           err.name !== "AbortError" &&
@@ -96,7 +158,7 @@ export default function TrendingGames({
 
             <p className="mt-4 max-w-xl text-sm leading-7 text-zinc-400 sm:text-base">
               {selectedGenre
-                ? `Explore ${selectedGenre.name.toLowerCase()} games and discover your next adventure.`
+                ? `Explore ${selectedGenre.name.toLowerCase()} games and find your next adventure.`
                 : "From unforgettable adventures to hidden gems, find something worth playing."}
             </p>
           </div>
@@ -147,12 +209,12 @@ export default function TrendingGames({
           </div>
         )}
 
-        {/* Game grid */}
+        {/* Distinct games */}
         {!loading && !error && games.length > 0 && (
           <>
-            <div className="mb-5 text-xs text-zinc-500">
-              Showing {games.length} games
-            </div>
+            <p className="mb-5 text-xs text-zinc-500">
+              Showing {games.length} unique games
+            </p>
 
             <div className="grid grid-cols-2 gap-x-4 gap-y-9 sm:grid-cols-3 sm:gap-x-5 sm:gap-y-10 lg:grid-cols-4 lg:gap-x-6">
               {games.map((game) => (
@@ -184,19 +246,8 @@ export default function TrendingGames({
           </div>
         )}
 
-        {/* Attribution */}
-        <p className="mt-10 text-center text-xs leading-6 text-zinc-600">
-          Game information provided by{" "}
-          <a
-            href="https://rawg.io"
-            target="_blank"
-            rel="noreferrer"
-            className="underline decoration-zinc-600 underline-offset-4 hover:text-zinc-400"
-          >
-            RAWG Video Games Database
-          </a>
-        </p>
       </div>
     </section>
   );
 }
+

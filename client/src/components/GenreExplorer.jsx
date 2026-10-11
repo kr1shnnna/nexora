@@ -307,18 +307,6 @@ export default function GenreExplorer({
             Explore All Games
           </button>
         </div>
-
-        <p className="mt-8 text-center text-xs text-zinc-600">
-          Game data and artwork provided by{" "}
-          <a
-            href="https://rawg.io"
-            target="_blank"
-            rel="noreferrer"
-            className="underline underline-offset-4 hover:text-zinc-400"
-          >
-            RAWG Video Games Database
-          </a>
-        </p>
       </div>
     </section>
   );
