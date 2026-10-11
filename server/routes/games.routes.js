@@ -217,4 +217,293 @@ router.get("/", async (req, res) => {
   }
 });
 
+
+
+
+
+/* =========================================
+   GAME DETAIL API HELPERS
+========================================= */
+
+async function fetchGameProvider(endpoint, params = {}) {
+  const apiKey = process.env.RAWG_API_KEY;
+
+  if (!apiKey) {
+    const error = new Error("Game API key is not configured.");
+    error.code = "API_KEY_MISSING";
+    throw error;
+  }
+
+  const url = new URL(
+    `https://api.rawg.io/api/${endpoint}`,
+  );
+
+  url.searchParams.set("key", apiKey);
+
+  for (const [key, value] of Object.entries(params)) {
+    if (value !== undefined && value !== null && value !== "") {
+      url.searchParams.set(key, String(value));
+    }
+  }
+
+  try {
+    const response = await fetch(url, {
+      headers: {
+        Accept: "application/json",
+      },
+      signal: AbortSignal.timeout(12000),
+    });
+
+    if (response.status === 404) {
+      const error = new Error("Game not found.");
+      error.code = "GAME_NOT_FOUND";
+      throw error;
+    }
+
+    if (response.status === 429) {
+      const error = new Error("Game API rate limit reached.");
+      error.code = "GAME_API_RATE_LIMIT";
+      throw error;
+    }
+
+    if (!response.ok) {
+      console.error(
+        `Game provider returned HTTP ${response.status}`,
+      );
+
+      const error = new Error("Game provider request failed.");
+      error.code = "GAME_PROVIDER_ERROR";
+      throw error;
+    }
+
+    return await response.json();
+  } catch (error) {
+    if (error.name === "TimeoutError") {
+      error.code = "GAME_PROVIDER_TIMEOUT";
+    }
+
+    throw error;
+  }
+}
+
+function handleGameProviderError(res, error) {
+  console.error("Game detail API error:", {
+    message: error.message,
+    code: error.code,
+    cause: error.cause?.message,
+  });
+
+  const errorResponses = {
+    API_KEY_MISSING: {
+      status: 500,
+      message: "Game API is not configured.",
+    },
+    GAME_NOT_FOUND: {
+      status: 404,
+      message: "The requested game was not found.",
+    },
+    GAME_API_RATE_LIMIT: {
+      status: 429,
+      message: "Too many requests. Please try again later.",
+    },
+    GAME_PROVIDER_TIMEOUT: {
+      status: 504,
+      message: "The game provider took too long to respond.",
+    },
+  };
+
+  const result =
+    errorResponses[error.code] ?? {
+      status: 502,
+      message: "Unable to retrieve game information.",
+    };
+
+  return res.status(result.status).json({
+    success: false,
+    message: result.message,
+  });
+}
+
+/* =========================================
+   GET /api/games/:id
+   Full game information
+========================================= */
+
+router.get("/:id", async (req, res) => {
+  const { id } = req.params;
+
+  if (!/^[a-zA-Z0-9_-]+$/.test(id)) {
+    return res.status(400).json({
+      success: false,
+      message: "Invalid game identifier.",
+    });
+  }
+
+  try {
+    const game = await fetchGameProvider(
+      `games/${encodeURIComponent(id)}`,
+    );
+
+    const platforms = (game.platforms ?? [])
+      .filter((item) => item.platform)
+      .map((item) => ({
+        id: item.platform.id,
+        name: item.platform.name,
+        slug: item.platform.slug,
+        releasedAt: item.released_at ?? null,
+        requirements: {
+          minimum: item.requirements?.minimum ?? null,
+          recommended: item.requirements?.recommended ?? null,
+        },
+      }));
+
+    return res.json({
+      success: true,
+      game: {
+        id: game.id,
+        slug: game.slug,
+        name: game.name,
+        description: game.description_raw ?? "",
+        backgroundImage: game.background_image ?? null,
+        backgroundImageAdditional:
+          game.background_image_additional ?? null,
+        released: game.released ?? null,
+        updated: game.updated ?? null,
+        website: game.website ?? null,
+        rating: game.rating ?? null,
+        ratingsCount: game.ratings_count ?? 0,
+        ratings: game.ratings ?? [],
+        metacritic: game.metacritic ?? null,
+        playtime: game.playtime ?? null,
+        esrbRating: game.esrb_rating?.name ?? null,
+
+        genres: (game.genres ?? []).map((genre) => ({
+          id: genre.id,
+          name: genre.name,
+          slug: genre.slug,
+        })),
+
+        developers: (game.developers ?? []).map((developer) => ({
+          id: developer.id,
+          name: developer.name,
+          slug: developer.slug,
+        })),
+
+        publishers: (game.publishers ?? []).map((publisher) => ({
+          id: publisher.id,
+          name: publisher.name,
+          slug: publisher.slug,
+        })),
+
+        platforms,
+
+        stores: (game.stores ?? []).map((item) => ({
+          id: item.store?.id,
+          name: item.store?.name,
+          slug: item.store?.slug,
+        })).filter((store) => store.id),
+
+        tags: (game.tags ?? []).slice(0, 20).map((tag) => ({
+          id: tag.id,
+          name: tag.name,
+          slug: tag.slug,
+        })),
+      },
+    });
+  } catch (error) {
+    return handleGameProviderError(res, error);
+  }
+});
+
+/* =========================================
+   GET /api/games/:id/screenshots
+   Screenshot gallery
+========================================= */
+
+router.get("/:id/screenshots", async (req, res) => {
+  const { id } = req.params;
+  const pageSize = Number(req.query.page_size ?? 12);
+
+  if (!/^[a-zA-Z0-9_-]+$/.test(id)) {
+    return res.status(400).json({
+      success: false,
+      message: "Invalid game identifier.",
+    });
+  }
+
+  if (
+    !Number.isInteger(pageSize) ||
+    pageSize < 1 ||
+    pageSize > 20
+  ) {
+    return res.status(400).json({
+      success: false,
+      message: "page_size must be between 1 and 20.",
+    });
+  }
+
+  try {
+    const data = await fetchGameProvider(
+      `games/${encodeURIComponent(id)}/screenshots`,
+      { page_size: pageSize },
+    );
+
+    return res.json({
+      success: true,
+      count: data.count ?? 0,
+      results: (data.results ?? []).map((item) => ({
+        id: item.id,
+        image: item.image,
+        width: item.width,
+        height: item.height,
+      })),
+    });
+  } catch (error) {
+    return handleGameProviderError(res, error);
+  }
+});
+
+/* =========================================
+   GET /api/games/:id/movies
+   Trailers and video previews
+========================================= */
+
+router.get("/:id/movies", async (req, res) => {
+  const { id } = req.params;
+
+  if (!/^[a-zA-Z0-9_-]+$/.test(id)) {
+    return res.status(400).json({
+      success: false,
+      message: "Invalid game identifier.",
+    });
+  }
+
+  try {
+    const data = await fetchGameProvider(
+      `games/${encodeURIComponent(id)}/movies`,
+    );
+
+    const results = (data.results ?? []).map((movie) => ({
+      id: movie.id,
+      name: movie.name,
+      preview: movie.preview ?? null,
+      video:
+        movie.data?.max ??
+        movie.data?.["720"] ??
+        movie.data?.["480"] ??
+        null,
+    }));
+
+    return res.json({
+      success: true,
+      count: results.length,
+      results,
+    });
+  } catch (error) {
+    return handleGameProviderError(res, error);
+  }
+});
+
+
+
 export default router;
