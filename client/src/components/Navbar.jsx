@@ -4,7 +4,6 @@ import {
   Gamepad2,
   Search,
   ShoppingCart,
-  UserRound,
   Menu,
   X,
 } from "lucide-react";
@@ -13,10 +12,7 @@ import { Link } from "react-router-dom";
 const navLinks = [
   { label: "Discover", href: "/discover" },
   { label: "Categories", href: "/#genres" },
-  {
-    label: "New Releases",
-    href: "/discover?ordering=-released",
-  },
+  { label: "New Releases", href: "/discover?ordering=-released" },
 ];
 
 export default function Navbar() {
@@ -27,105 +23,111 @@ export default function Navbar() {
   }
 
   return (
-    <header className="absolute inset-x-0 top-0 z-50 border-b border-white/[0.06] bg-[#090a0f]/70 backdrop-blur-xl">
-      <nav className="mx-auto flex h-[76px] max-w-[1440px] items-center justify-between px-5 sm:px-8 lg:px-12">
+    <header className="absolute inset-x-0 top-0 z-50">
+      <nav className="mx-auto flex max-w-[1600px] items-center justify-between px-5 py-5 sm:px-8 lg:px-14">
+
         {/* Brand */}
         <Link
           to="/"
           onClick={closeMenu}
-          aria-label="NEXORA home"
-          className="group flex items-center gap-2.5"
+          className="flex shrink-0 items-center gap-2.5"
         >
-          <Gamepad2
-            size={28}
-            className="text-violet-400 transition-transform duration-300 group-hover:rotate-[-8deg]"
-          />
+          <Gamepad2 className="h-7 w-7 text-violet-400" />
 
-          <span className="text-xl font-black tracking-[0.18em] text-white">
-            NEXORA<span className="text-violet-400">.</span>
+          <span className="text-xl font-black tracking-[0.18em] text-white sm:text-2xl">
+            NEXORA
           </span>
         </Link>
 
         {/* Desktop navigation */}
-        <div className="hidden items-center gap-9 md:flex">
+        <div className="hidden items-center gap-8 lg:flex">
           {navLinks.map((link) => (
             <a
               key={link.label}
               href={link.href}
-              className="text-sm text-zinc-400 transition-colors duration-200 hover:text-white"
+              className="text-sm font-medium text-white/65 transition-colors duration-300 hover:text-white"
             >
               {link.label}
             </a>
           ))}
         </div>
 
-        {/* Navigation actions */}
+        {/* Actions */}
         <div className="flex items-center gap-3 sm:gap-5">
+
           {/* Search */}
           <Link
             to="/discover"
-            aria-label="Search games"
             onClick={closeMenu}
-            className="text-zinc-300 transition-colors hover:text-violet-400"
+            aria-label="Search games"
+            className="text-white/70 transition-colors hover:text-violet-300"
           >
-            <Search size={19} strokeWidth={1.8} />
+            <Search size={21} />
           </Link>
 
-          {/* Cart — demo cart page will be added later */}
+          {/* Shopping cart */}
           <button
             type="button"
-            aria-label="Shopping cart coming soon"
+            aria-label="Shopping cart"
             title="Shopping cart"
-            className="text-zinc-300 transition-colors hover:text-violet-400"
+            className="text-white/70 transition-colors hover:text-violet-300"
           >
-            <ShoppingCart size={19} strokeWidth={1.8} />
+            <ShoppingCart size={21} />
           </button>
 
-          {/* Account: opens login */}
+          {/* Get Started — desktop */}
           <Link
-            to="/login"
-            aria-label="Sign in to NEXORA"
+            to="/register"
             onClick={closeMenu}
-            className="hidden text-zinc-300 transition-colors hover:text-violet-400 sm:block"
+            className="hidden rounded-full bg-violet-600 px-5 py-2.5 text-sm font-semibold text-white shadow-lg shadow-violet-950/30 transition-all duration-300 hover:-translate-y-0.5 hover:bg-violet-500 hover:shadow-violet-500/20 sm:inline-flex"
           >
-            <UserRound size={19} strokeWidth={1.8} />
+            Get Started
           </Link>
 
           {/* Mobile menu toggle */}
           <button
             type="button"
-            aria-label={menuOpen ? "Close navigation" : "Open navigation"}
-            aria-expanded={menuOpen}
             onClick={() => setMenuOpen((open) => !open)}
-            className="text-zinc-200 md:hidden"
+            aria-label={menuOpen ? "Close menu" : "Open menu"}
+            aria-expanded={menuOpen}
+            className="text-white sm:hidden"
           >
-            {menuOpen ? <X size={22} /> : <Menu size={22} />}
+            {menuOpen ? <X size={24} /> : <Menu size={24} />}
           </button>
         </div>
       </nav>
 
       {/* Mobile navigation */}
       {menuOpen && (
-        <div className="border-t border-white/[0.06] bg-[#0d0e15]/95 px-6 py-5 backdrop-blur-xl md:hidden">
+        <div className="mx-4 rounded-2xl border border-white/10 bg-[#111016]/95 p-5 shadow-2xl backdrop-blur-xl sm:hidden">
           <div className="flex flex-col gap-5">
             {navLinks.map((link) => (
               <a
                 key={link.label}
                 href={link.href}
                 onClick={closeMenu}
-                className="text-sm text-zinc-300 transition-colors hover:text-violet-400"
+                className="text-sm font-medium text-white/75 transition-colors hover:text-violet-300"
               >
                 {link.label}
               </a>
             ))}
 
+            <div className="h-px bg-white/10" />
+
             <Link
               to="/login"
               onClick={closeMenu}
-              className="flex items-center gap-2 text-sm text-zinc-300 transition-colors hover:text-violet-400"
+              className="text-sm font-medium text-white/80 transition-colors hover:text-violet-300"
             >
-              <UserRound size={17} />
-              Sign in / Register
+              Login
+            </Link>
+
+            <Link
+              to="/register"
+              onClick={closeMenu}
+              className="rounded-full bg-violet-600 px-5 py-3 text-center text-sm font-semibold text-white transition-colors hover:bg-violet-500"
+            >
+              Get Started
             </Link>
           </div>
         </div>
