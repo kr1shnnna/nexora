@@ -8,8 +8,7 @@ import {
   Menu,
   X,
 } from "lucide-react";
-
-
+import { Link } from "react-router-dom";
 
 const navLinks = [
   { label: "Discover", href: "/discover" },
@@ -20,17 +19,20 @@ const navLinks = [
   },
 ];
 
-
-
 export default function Navbar() {
   const [menuOpen, setMenuOpen] = useState(false);
+
+  function closeMenu() {
+    setMenuOpen(false);
+  }
 
   return (
     <header className="absolute inset-x-0 top-0 z-50 border-b border-white/[0.06] bg-[#090a0f]/70 backdrop-blur-xl">
       <nav className="mx-auto flex h-[76px] max-w-[1440px] items-center justify-between px-5 sm:px-8 lg:px-12">
         {/* Brand */}
-        <a
-          href="/"
+        <Link
+          to="/"
+          onClick={closeMenu}
           aria-label="NEXORA home"
           className="group flex items-center gap-2.5"
         >
@@ -40,10 +42,9 @@ export default function Navbar() {
           />
 
           <span className="text-xl font-black tracking-[0.18em] text-white">
-            NEXORA
-            <span className="text-violet-400">.</span>
+            NEXORA<span className="text-violet-400">.</span>
           </span>
-        </a>
+        </Link>
 
         {/* Desktop navigation */}
         <div className="hidden items-center gap-9 md:flex">
@@ -58,31 +59,37 @@ export default function Navbar() {
           ))}
         </div>
 
-        {/* Actions */}
+        {/* Navigation actions */}
         <div className="flex items-center gap-3 sm:gap-5">
-          <button
-            type="button"
+          {/* Search */}
+          <Link
+            to="/discover"
             aria-label="Search games"
+            onClick={closeMenu}
             className="text-zinc-300 transition-colors hover:text-violet-400"
           >
             <Search size={19} strokeWidth={1.8} />
-          </button>
+          </Link>
 
+          {/* Cart — demo cart page will be added later */}
           <button
             type="button"
-            aria-label="Shopping cart"
+            aria-label="Shopping cart coming soon"
+            title="Shopping cart"
             className="text-zinc-300 transition-colors hover:text-violet-400"
           >
             <ShoppingCart size={19} strokeWidth={1.8} />
           </button>
 
-          <button
-            type="button"
-            aria-label="Account"
+          {/* Account: opens login */}
+          <Link
+            to="/login"
+            aria-label="Sign in to NEXORA"
+            onClick={closeMenu}
             className="hidden text-zinc-300 transition-colors hover:text-violet-400 sm:block"
           >
             <UserRound size={19} strokeWidth={1.8} />
-          </button>
+          </Link>
 
           {/* Mobile menu toggle */}
           <button
@@ -105,16 +112,24 @@ export default function Navbar() {
               <a
                 key={link.label}
                 href={link.href}
-                onClick={() => setMenuOpen(false)}
+                onClick={closeMenu}
                 className="text-sm text-zinc-300 transition-colors hover:text-violet-400"
               >
                 {link.label}
               </a>
             ))}
+
+            <Link
+              to="/login"
+              onClick={closeMenu}
+              className="flex items-center gap-2 text-sm text-zinc-300 transition-colors hover:text-violet-400"
+            >
+              <UserRound size={17} />
+              Sign in / Register
+            </Link>
           </div>
         </div>
       )}
     </header>
   );
 }
-

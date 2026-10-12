@@ -1,10 +1,9 @@
-
 import { Routes, Route, Link } from "react-router-dom";
 
 import Home from "./pages/Home";
 import Discover from "./pages/Discover";
 import GameDetails from "./pages/GameDetails";
-
+import Auth from "./pages/Auth";
 
 function NotFound() {
   return (
@@ -13,13 +12,11 @@ function NotFound() {
         404 · LOST IN SPACE
       </p>
 
-      <h1 className="mt-5 text-4xl font-black sm:text-6xl">
-        Wrong universe.
-      </h1>
+      <h1 className="mt-5 text-4xl font-black sm:text-6xl">Wrong universe.</h1>
 
       <p className="mt-4 max-w-md text-sm leading-7 text-zinc-400">
-        This destination doesn't exist yet. Return home and
-        discover another game.
+        This destination doesn't exist yet. Return home and discover another
+        game.
       </p>
 
       <Link
@@ -38,6 +35,8 @@ export default function App() {
       <Route path="/" element={<Home />} />
       <Route path="/discover" element={<Discover />} />
       <Route path="/games/:id" element={<GameDetails />} />
+      <Route path="/login" element={<Auth />} />
+      <Route path="/register" element={<Auth />} />
       <Route path="*" element={<NotFound />} />
     </Routes>
   );
