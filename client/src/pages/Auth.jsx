@@ -1,4 +1,3 @@
-
 import { useEffect, useRef, useState } from "react";
 import { Link, useLocation } from "react-router-dom";
 import {
@@ -14,84 +13,129 @@ import {
 import gsap from "gsap";
 import { fetchGames } from "../services/gameService";
 
+// Curated artwork loads immediately.
+// API artwork is used only when the correct game is found.
 const GAME_SCENES = [
   {
+    id: "cyberpunk-2077",
     search: "Cyberpunk 2077",
     expectedTitle: "Cyberpunk 2077",
+    name: "Cyberpunk 2077",
     kicker: "WELCOME TO NIGHT CITY",
     tagline: "No rules. No limits. Your story.",
     description:
       "In a city that never sleeps, your next adventure is waiting.",
+    imageOptions: [
+      "https://cdn.cloudflare.steamstatic.com/steam/apps/1091500/library_hero.jpg",
+      "https://cdn.cloudflare.steamstatic.com/steam/apps/1091500/header.jpg",
+      "https://cdn.akamai.steamstatic.com/steam/apps/1091500/library_hero.jpg",
+      "https://cdn.akamai.steamstatic.com/steam/apps/1091500/header.jpg",
+    ],
   },
   {
+    id: "assassins-creed-unity",
     search: "Assassin's Creed Unity",
     expectedTitle: "Assassin's Creed Unity",
+    name: "Assassin's Creed Unity",
     kicker: "PARIS. 1789.",
     tagline: "Become the shadow of a revolution.",
     description:
       "Move through a city on the edge of chaos. Every rooftop hides a new story.",
+    imageOptions: [
+      "https://cdn.cloudflare.steamstatic.com/steam/apps/289650/library_hero.jpg",
+      "https://cdn.cloudflare.steamstatic.com/steam/apps/289650/header.jpg",
+      "https://cdn.akamai.steamstatic.com/steam/apps/289650/library_hero.jpg",
+      "https://cdn.akamai.steamstatic.com/steam/apps/289650/header.jpg",
+    ],
   },
   {
-    search: "The Last of Us",
+    id: "the-last-of-us",
+    search: "The Last of Us Part I",
     expectedTitle: "The Last of Us",
+    name: "The Last of Us Part I",
     kicker: "SURVIVAL IS EVERYTHING",
     tagline: "Some journeys change everything.",
     description:
       "Step into a haunting world where survival is only the beginning.",
+    imageOptions: [
+      "https://cdn.cloudflare.steamstatic.com/steam/apps/1888930/library_hero.jpg",
+      "https://cdn.cloudflare.steamstatic.com/steam/apps/1888930/header.jpg",
+      "https://cdn.akamai.steamstatic.com/steam/apps/1888930/library_hero.jpg",
+      "https://cdn.akamai.steamstatic.com/steam/apps/1888930/header.jpg",
+    ],
   },
 ];
 
-const FALLBACK_SCENE = {
-  id: "nexora-world",
-  name: "The NEXORA Universe",
-  kicker: "YOUR NEXT ADVENTURE STARTS HERE",
-  tagline: "Every world has a story.",
+// Popular AAA fallback if a game's artwork sources fail completely.
+const AAA_FALLBACK = {
+  id: "red-dead-redemption-2",
+  name: "Red Dead Redemption 2",
+  kicker: "A WORLD WITHOUT LIMITS",
+  tagline: "Every legend leaves a mark.",
   description:
-    "Discover unforgettable worlds. Find your next obsession. Play your way.",
-  image:
-    "https://images.unsplash.com/photo-1519608487953-e999c86e7455?auto=format&fit=crop&w=2000&q=90",
+    "Ride into a breathtaking open world and write your own story.",
+  imageOptions: [
+    "https://cdn.cloudflare.steamstatic.com/steam/apps/1174180/library_hero.jpg",
+    "https://cdn.cloudflare.steamstatic.com/steam/apps/1174180/header.jpg",
+    "https://cdn.akamai.steamstatic.com/steam/apps/1174180/library_hero.jpg",
+  ],
 };
 
 function normalizeTitle(value = "") {
   return value.toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
 }
 
-
 function findMatchingGame(games, expectedTitle) {
+  if (!Array.isArray(games)) return null;
+
   const expected = normalizeTitle(expectedTitle);
 
   if (expected === "the last of us") {
-    // Prefer the original game or its Part I remake.
     return (
       games.find(
         (game) => normalizeTitle(game.name) === "the last of us"
       ) ||
       games.find(
-        (game) => normalizeTitle(game.name) === "the last of us remastered"
+        (game) =>
+          normalizeTitle(game.name) === "the last of us remastered"
       ) ||
-      games.find((game) =>
-        /^the last of us part i\b/.test(normalizeTitle(game.name))
-      ) ||
+      games.find((game) => {
+        const title = normalizeTitle(game.name);
+
+        return /^the last of us part i(?:\s|$)/.test(title);
+      }) ||
       null
     );
   }
 
   return (
-    games.find((game) => normalizeTitle(game.name) === expected) ||
+    games.find(
+      (game) => normalizeTitle(game.name) === expected
+    ) ||
     games.find((game) =>
-      normalizeTitle(game.name).startsWith(expected + " ")
+      normalizeTitle(game.name).startsWith(`${expected} `)
     ) ||
     null
   );
 }
 
+function createScene(scene) {
+  return {
+    ...scene,
+    imageIndex: 0,
+    isEmergencyFallback: false,
+  };
+}
 
 export default function Auth() {
   const location = useLocation();
   const isRegister = location.pathname === "/register";
 
-  const [scenes, setScenes] = useState([FALLBACK_SCENE]);
+  const [scenes, setScenes] = useState(() =>
+    GAME_SCENES.map(createScene)
+  );
   const [activeScene, setActiveScene] = useState(0);
+
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [notice, setNotice] = useState("");
@@ -105,93 +149,101 @@ export default function Auth() {
   });
 
   const sceneLayers = useRef([]);
-  const sceneCopy = useRef(null);
+  const sceneCopyRef = useRef(null);
+  const formPanelRef = useRef(null);
   const activeSceneRef = useRef(0);
 
   const currentScene = scenes[activeScene] || scenes[0];
 
-  // Load the selected game artwork from the existing backend.
+  // Fetch artwork for the exact intended games.
+  // The curated artwork remains available if the API fails.
   useEffect(() => {
     const controller = new AbortController();
 
-    async function loadScenes() {
+    async function loadSceneArtwork() {
       const results = await Promise.all(
         GAME_SCENES.map(async (scene) => {
           try {
             const response = await fetchGames({
               page: 1,
-              pageSize: 12,
+              pageSize: 20,
               search: scene.search,
               signal: controller.signal,
             });
 
             const games = Array.isArray(response?.results)
               ? response.results
-              : [];
+              : Array.isArray(response?.data?.results)
+                ? response.data.results
+                : [];
 
             const game = findMatchingGame(
               games,
               scene.expectedTitle
             );
 
-            const image =
+            const apiImage =
               game?.backgroundImage || game?.background_image;
 
-            if (!game || !image) return null;
+            if (!game || !apiImage) {
+              return createScene(scene);
+            }
+
+            // Correctly matched API artwork first;
+            // curated artwork remains as a fallback.
+            const imageOptions = [
+              apiImage,
+              ...scene.imageOptions.filter(
+                (image) => image !== apiImage
+              ),
+            ];
 
             return {
               ...scene,
-              id: game.id,
-              name: game.name,
-              image,
+              imageOptions,
+              imageIndex: 0,
+              isEmergencyFallback: false,
             };
           } catch (error) {
             if (error.name !== "AbortError") {
-              console.error(
-                `Unable to load artwork for ${scene.expectedTitle}:`,
-                error
+              console.warn(
+                `Using curated artwork for ${scene.name}.`,
+                error.message
               );
             }
 
-            return null;
+            return createScene(scene);
           }
         })
       );
 
-      if (controller.signal.aborted) return;
-
-      const loadedScenes = results.filter(Boolean);
-
-      if (loadedScenes.length > 0) {
-        setScenes(loadedScenes);
-        setActiveScene(0);
+      if (!controller.signal.aborted) {
+        setScenes(results);
       }
     }
 
-    loadScenes();
+    loadSceneArtwork();
 
     return () => controller.abort();
   }, []);
 
-  // Keep the active scene index available to animation handlers.
+  // Keep animation handlers synchronized with the current slide.
   useEffect(() => {
     activeSceneRef.current = activeScene;
   }, [activeScene]);
 
-  // Automatically transition to the next game.
+  // Automatically advance every eight seconds.
   useEffect(() => {
     if (scenes.length < 2) return undefined;
 
-    const interval = window.setInterval(() => {
-      setActiveScene(
-        (current) => (current + 1) % scenes.length
-      );
+    const intervalId = window.setInterval(() => {
+      setActiveScene((current) => (current + 1) % scenes.length);
     }, 8000);
 
-    return () => window.clearInterval(interval);
+    return () => window.clearInterval(intervalId);
   }, [scenes.length]);
 
-  // Cinematic crossfades, slow camera zoom and animated text.
+  // Cinematic background transitions and animated scene copy.
   useEffect(() => {
     sceneLayers.current.forEach((layer, index) => {
       if (!layer) return;
@@ -210,7 +262,7 @@ export default function Auth() {
           {
             autoAlpha: 1,
             scale: 1.035,
-            duration: 1.7,
+            duration: 1.8,
             ease: "power3.out",
           }
         );
@@ -222,9 +274,9 @@ export default function Auth() {
       }
     });
 
-    if (sceneCopy.current) {
+    if (sceneCopyRef.current) {
       gsap.fromTo(
-        sceneCopy.current,
+        sceneCopyRef.current,
         {
           autoAlpha: 0,
           y: 24,
@@ -233,7 +285,7 @@ export default function Auth() {
           autoAlpha: 1,
           y: 0,
           duration: 0.85,
-          delay: 0.2,
+          delay: 0.15,
           ease: "power3.out",
         }
       );
@@ -244,13 +296,73 @@ export default function Auth() {
         if (layer) gsap.killTweensOf(layer);
       });
 
-      if (sceneCopy.current) {
-        gsap.killTweensOf(sceneCopy.current);
+      if (sceneCopyRef.current) {
+        gsap.killTweensOf(sceneCopyRef.current);
       }
     };
   }, [activeScene, scenes]);
 
-  // Subtle mouse-responsive movement on desktop.
+  // Animate the authentication panel on Login/Register changes.
+  useEffect(() => {
+    setNotice("");
+
+    if (!formPanelRef.current) return undefined;
+
+    const panel = formPanelRef.current;
+
+    gsap.fromTo(
+      panel,
+      {
+        autoAlpha: 0,
+        y: 20,
+        rotateX: 2,
+      },
+      {
+        autoAlpha: 1,
+        y: 0,
+        rotateX: 0,
+        duration: 0.7,
+        ease: "power3.out",
+      }
+    );
+
+    return () => gsap.killTweensOf(panel);
+  }, [isRegister]);
+
+  // If an image fails, try the next source for the same game.
+  // If all its sources fail, use Red Dead Redemption 2.
+  function handleImageError(sceneIndex) {
+    setScenes((currentScenes) => {
+      const scene = currentScenes[sceneIndex];
+
+      if (!scene) return currentScenes;
+
+      const nextIndex = scene.imageIndex + 1;
+
+      if (nextIndex < scene.imageOptions.length) {
+        return currentScenes.map((item, index) =>
+          index === sceneIndex
+            ? { ...item, imageIndex: nextIndex }
+            : item
+        );
+      }
+
+      if (scene.isEmergencyFallback) {
+        return currentScenes;
+      }
+
+      return currentScenes.map((item, index) => {
+        if (index !== sceneIndex) return item;
+
+        return {
+          ...createScene(AAA_FALLBACK),
+          isEmergencyFallback: true,
+        };
+      });
+    });
+  }
+
+  // Subtle mouse-responsive camera movement.
   function handlePointerMove(event) {
     if (event.pointerType === "touch") return;
 
@@ -264,7 +376,7 @@ export default function Auth() {
     gsap.to(layer, {
       x: x * -14,
       y: y * -10,
-      duration: 1,
+      duration: 0.9,
       ease: "power2.out",
       overwrite: "auto",
     });
@@ -322,7 +434,7 @@ export default function Auth() {
       onPointerLeave={handlePointerLeave}
       className="relative min-h-screen overflow-hidden bg-[#08080d] text-white"
     >
-      {/* FULL-SCREEN ANIMATED GAME ARTWORK */}
+      {/* FULL-SCREEN GAME ARTWORK */}
       <div className="pointer-events-none fixed inset-0 overflow-hidden">
         {scenes.map((scene, index) => (
           <div
@@ -331,26 +443,28 @@ export default function Auth() {
               sceneLayers.current[index] = element;
             }}
             className="absolute inset-0"
-            style={{ opacity: index === 0 ? 1 : 0 }}
+            style={{ opacity: index === activeScene ? 1 : 0 }}
           >
             <img
-              src={scene.image}
+              src={scene.imageOptions[scene.imageIndex]}
               alt=""
+              aria-hidden="true"
+              onError={() => handleImageError(index)}
               className="h-full w-full object-cover object-center"
               draggable="false"
             />
           </div>
         ))}
 
-        {/* Cinematic colour grading */}
+        {/* Cinematic dark overlays */}
         <div className="absolute inset-0 bg-black/25" />
 
-        <div className="absolute inset-0 bg-gradient-to-r from-[#08080d]/45 via-[#08080d]/50 to-[#08080d]/90" />
+        <div className="absolute inset-0 bg-gradient-to-r from-[#08080d]/50 via-[#08080d]/50 to-[#08080d]/90" />
 
         <div className="absolute inset-0 bg-gradient-to-t from-[#08080d] via-transparent to-[#08080d]/35" />
       </div>
 
-      {/* NO NAVBAR — ONLY A SMALL RETURN LINK */}
+      {/* NO NAVBAR */}
       <div className="absolute left-5 top-5 z-20 sm:left-9 sm:top-8">
         <Link
           to="/"
@@ -364,14 +478,14 @@ export default function Auth() {
         </Link>
       </div>
 
-      {/* PAGE CONTENT */}
+      {/* MAIN LAYOUT */}
       <div className="relative z-10 mx-auto grid min-h-screen w-full max-w-[1600px] grid-cols-1 items-center gap-10 px-5 pb-10 pt-24 sm:px-8 md:px-12 lg:grid-cols-[minmax(0,1fr)_450px] lg:gap-12 lg:px-16 lg:pt-16">
 
-        {/* CINEMATIC GAME INTRO — DESKTOP */}
+        {/* CINEMATIC GAME INTRODUCTION */}
         <section className="hidden min-h-[540px] flex-col justify-end pb-8 lg:flex">
-          <div ref={sceneCopy} className="max-w-2xl">
+          <div ref={sceneCopyRef} className="max-w-2xl">
             <div className="mb-6 inline-flex items-center gap-3 rounded-full border border-white/15 bg-black/20 px-4 py-2 backdrop-blur-md">
-              <span className="h-2 w-2 rounded-full bg-violet-400" />
+        
 
               <span className="text-[10px] font-semibold uppercase tracking-[0.24em] text-white/80">
                 {currentScene.kicker}
@@ -390,7 +504,7 @@ export default function Auth() {
               {currentScene.description}
             </p>
 
-            {/* PREVIOUS / NEXT SCENE */}
+            {/* MANUAL SCENE CONTROLS */}
             {scenes.length > 1 && (
               <div className="mt-9 flex items-center gap-5">
                 <button
@@ -405,7 +519,7 @@ export default function Auth() {
                 <div className="flex items-center gap-2">
                   {scenes.map((scene, index) => (
                     <button
-                      key={scene.id}
+                      key={`${scene.id}-${index}`}
                       type="button"
                       aria-label={`Show ${scene.name}`}
                       aria-pressed={activeScene === index}
@@ -443,12 +557,13 @@ export default function Auth() {
           </div>
         </section>
 
-        {/* LOGIN / REGISTER CARD */}
+        {/* LOGIN / REGISTER PANEL */}
         <section
+          ref={formPanelRef}
           className="w-full max-w-[450px] justify-self-center rounded-[28px] border border-white/15 bg-[#101016]/80 p-6 backdrop-blur-2xl sm:p-9 lg:justify-self-end"
           style={{ perspective: "1000px" }}
         >
-          {/* FORM BRAND */}
+          {/* BRAND */}
           <Link to="/" className="group mb-8 flex items-center gap-3">
             <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-violet-600/15">
               <Gamepad2
@@ -468,7 +583,7 @@ export default function Auth() {
             </div>
           </Link>
 
-          {/* LOGIN / REGISTER SWITCH */}
+          {/* LOGIN / REGISTER TABS */}
           <div className="mb-8 grid grid-cols-2 rounded-xl border border-white/10 bg-black/20 p-1">
             <Link
               to="/login"
@@ -688,7 +803,7 @@ export default function Auth() {
               </div>
             )}
 
-            {/* STATUS MESSAGE */}
+            {/* FEEDBACK */}
             {notice && (
               <p
                 role="status"
@@ -698,7 +813,7 @@ export default function Auth() {
               </p>
             )}
 
-            {/* SUBMIT BUTTON */}
+            {/* SUBMIT */}
             <button
               type="submit"
               className="group flex w-full items-center justify-center gap-2 rounded-xl bg-violet-600 py-3.5 text-sm font-semibold text-white transition-colors duration-300 hover:bg-violet-500 active:bg-violet-700"
@@ -712,7 +827,7 @@ export default function Auth() {
             </button>
           </form>
 
-          {/* FORM FOOTER */}
+          {/* FOOTER */}
           <p className="mt-7 text-center text-sm text-white/45">
             {isRegister
               ? "Already have an account?"
