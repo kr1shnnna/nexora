@@ -26,20 +26,23 @@ export default function Navbar() {
     <header className="absolute inset-x-0 top-0 z-50">
       <nav className="mx-auto flex max-w-[1600px] items-center justify-between px-5 py-5 sm:px-8 lg:px-14">
 
-        {/* Brand */}
+        {/* NEXORA Brand */}
         <Link
           to="/"
           onClick={closeMenu}
-          className="flex shrink-0 items-center gap-2.5"
+          className="group flex shrink-0 items-center gap-2.5"
+          aria-label="NEXORA home"
         >
-          <Gamepad2 className="h-7 w-7 text-violet-400" />
+          <Gamepad2
+            className="h-7 w-7 text-violet-400 transition-transform duration-300 ease-out group-hover:rotate-[-12deg] group-hover:scale-110"
+          />
 
           <span className="text-xl font-black tracking-[0.18em] text-white sm:text-2xl">
             NEXORA
           </span>
         </Link>
 
-        {/* Desktop navigation */}
+        {/* Desktop Navigation */}
         <div className="hidden items-center gap-8 lg:flex">
           {navLinks.map((link) => (
             <a
@@ -52,7 +55,7 @@ export default function Navbar() {
           ))}
         </div>
 
-        {/* Actions */}
+        {/* Navbar Actions */}
         <div className="flex items-center gap-3 sm:gap-5">
 
           {/* Search */}
@@ -60,53 +63,55 @@ export default function Navbar() {
             to="/discover"
             onClick={closeMenu}
             aria-label="Search games"
-            className="text-white/70 transition-colors hover:text-violet-300"
+            title="Discover games"
+            className="text-white/70 transition-colors duration-300 hover:text-violet-300"
           >
             <Search size={21} />
           </Link>
 
-          {/* Shopping cart */}
+          {/* Shopping Cart */}
           <button
             type="button"
             aria-label="Shopping cart"
             title="Shopping cart"
-            className="text-white/70 transition-colors hover:text-violet-300"
+            className="text-white/70 transition-colors duration-300 hover:text-violet-300"
           >
             <ShoppingCart size={21} />
           </button>
 
-          {/* Get Started — desktop */}
+          {/* Get Started — Desktop */}
           <Link
             to="/register"
             onClick={closeMenu}
-           className="hidden rounded-full bg-violet-600 px-5 py-2.5 text-sm font-semibold text-white transition-colors duration-300 hover:bg-violet-500 sm:inline-flex"
+            className="hidden rounded-full bg-violet-600 px-5 py-2.5 text-sm font-semibold text-white transition-colors duration-300 hover:bg-violet-500 sm:inline-flex"
           >
             Get Started
           </Link>
 
-          {/* Mobile menu toggle */}
+          {/* Mobile Menu Toggle */}
           <button
             type="button"
             onClick={() => setMenuOpen((open) => !open)}
             aria-label={menuOpen ? "Close menu" : "Open menu"}
             aria-expanded={menuOpen}
-            className="text-white sm:hidden"
+            className="text-white transition-colors duration-300 hover:text-violet-300 sm:hidden"
           >
             {menuOpen ? <X size={24} /> : <Menu size={24} />}
           </button>
         </div>
       </nav>
 
-      {/* Mobile navigation */}
+      {/* Mobile Navigation */}
       {menuOpen && (
         <div className="mx-4 rounded-2xl border border-white/10 bg-[#111016]/95 p-5 shadow-2xl backdrop-blur-xl sm:hidden">
           <div className="flex flex-col gap-5">
+
             {navLinks.map((link) => (
               <a
                 key={link.label}
                 href={link.href}
                 onClick={closeMenu}
-                className="text-sm font-medium text-white/75 transition-colors hover:text-violet-300"
+                className="text-sm font-medium text-white/75 transition-colors duration-300 hover:text-violet-300"
               >
                 {link.label}
               </a>
@@ -117,7 +122,7 @@ export default function Navbar() {
             <Link
               to="/login"
               onClick={closeMenu}
-              className="text-sm font-medium text-white/80 transition-colors hover:text-violet-300"
+              className="text-sm font-medium text-white/80 transition-colors duration-300 hover:text-violet-300"
             >
               Login
             </Link>
@@ -125,7 +130,7 @@ export default function Navbar() {
             <Link
               to="/register"
               onClick={closeMenu}
-              className="rounded-full bg-violet-600 px-5 py-3 text-center text-sm font-semibold text-white transition-colors hover:bg-violet-500"
+              className="rounded-full bg-violet-600 px-5 py-3 text-center text-sm font-semibold text-white transition-colors duration-300 hover:bg-violet-500"
             >
               Get Started
             </Link>

@@ -1,5 +1,5 @@
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Link, useLocation } from "react-router-dom";
 import {
   ArrowLeft,
@@ -11,17 +11,91 @@ import {
   Mail,
   UserRound,
 } from "lucide-react";
+import gsap from "gsap";
+import { fetchGames } from "../services/gameService";
 
-const WALLPAPER =
-  "https://images.unsplash.com/photo-1519608487953-e999c86e7455?auto=format&fit=crop&w=1800&q=85";
+const GAME_SCENES = [
+  {
+    search: "Cyberpunk 2077",
+    expectedTitle: "Cyberpunk 2077",
+    kicker: "WELCOME TO NIGHT CITY",
+    tagline: "No rules. No limits. Your story.",
+    description:
+      "In a city that never sleeps, your next adventure is waiting.",
+  },
+  {
+    search: "Assassin's Creed Unity",
+    expectedTitle: "Assassin's Creed Unity",
+    kicker: "PARIS. 1789.",
+    tagline: "Become the shadow of a revolution.",
+    description:
+      "Move through a city on the edge of chaos. Every rooftop hides a new story.",
+  },
+  {
+    search: "The Last of Us",
+    expectedTitle: "The Last of Us",
+    kicker: "SURVIVAL IS EVERYTHING",
+    tagline: "Some journeys change everything.",
+    description:
+      "Step into a haunting world where survival is only the beginning.",
+  },
+];
+
+const FALLBACK_SCENE = {
+  id: "nexora-world",
+  name: "The NEXORA Universe",
+  kicker: "YOUR NEXT ADVENTURE STARTS HERE",
+  tagline: "Every world has a story.",
+  description:
+    "Discover unforgettable worlds. Find your next obsession. Play your way.",
+  image:
+    "https://images.unsplash.com/photo-1519608487953-e999c86e7455?auto=format&fit=crop&w=2000&q=90",
+};
+
+function normalizeTitle(value = "") {
+  return value.toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
+}
+
+
+function findMatchingGame(games, expectedTitle) {
+  const expected = normalizeTitle(expectedTitle);
+
+  if (expected === "the last of us") {
+    // Prefer the original game or its Part I remake.
+    return (
+      games.find(
+        (game) => normalizeTitle(game.name) === "the last of us"
+      ) ||
+      games.find(
+        (game) => normalizeTitle(game.name) === "the last of us remastered"
+      ) ||
+      games.find((game) =>
+        /^the last of us part i\b/.test(normalizeTitle(game.name))
+      ) ||
+      null
+    );
+  }
+
+  return (
+    games.find((game) => normalizeTitle(game.name) === expected) ||
+    games.find((game) =>
+      normalizeTitle(game.name).startsWith(expected + " ")
+    ) ||
+    null
+  );
+}
+
 
 export default function Auth() {
   const location = useLocation();
   const isRegister = location.pathname === "/register";
 
+  const [scenes, setScenes] = useState([FALLBACK_SCENE]);
+  const [activeScene, setActiveScene] = useState(0);
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [notice, setNotice] = useState("");
+
   const [form, setForm] = useState({
     username: "",
     email: "",
@@ -30,15 +104,200 @@ export default function Auth() {
     remember: true,
   });
 
-  function updateField(event) {
+  const sceneLayers = useRef([]);
+  const sceneCopy = useRef(null);
+  const activeSceneRef = useRef(0);
+
+  const currentScene = scenes[activeScene] || scenes[0];
+
+  // Load the selected game artwork from the existing backend.
+  useEffect(() => {
+    const controller = new AbortController();
+
+    async function loadScenes() {
+      const results = await Promise.all(
+        GAME_SCENES.map(async (scene) => {
+          try {
+            const response = await fetchGames({
+              page: 1,
+              pageSize: 12,
+              search: scene.search,
+              signal: controller.signal,
+            });
+
+            const games = Array.isArray(response?.results)
+              ? response.results
+              : [];
+
+            const game = findMatchingGame(
+              games,
+              scene.expectedTitle
+            );
+
+            const image =
+              game?.backgroundImage || game?.background_image;
+
+            if (!game || !image) return null;
+
+            return {
+              ...scene,
+              id: game.id,
+              name: game.name,
+              image,
+            };
+          } catch (error) {
+            if (error.name !== "AbortError") {
+              console.error(
+                `Unable to load artwork for ${scene.expectedTitle}:`,
+                error
+              );
+            }
+
+            return null;
+          }
+        })
+      );
+
+      if (controller.signal.aborted) return;
+
+      const loadedScenes = results.filter(Boolean);
+
+      if (loadedScenes.length > 0) {
+        setScenes(loadedScenes);
+        setActiveScene(0);
+      }
+    }
+
+    loadScenes();
+
+    return () => controller.abort();
+  }, []);
+
+  // Keep the active scene index available to animation handlers.
+  useEffect(() => {
+    activeSceneRef.current = activeScene;
+  }, [activeScene]);
+
+  // Automatically transition to the next game.
+  useEffect(() => {
+    if (scenes.length < 2) return undefined;
+
+    const interval = window.setInterval(() => {
+      setActiveScene(
+        (current) => (current + 1) % scenes.length
+      );
+    }, 8000);
+
+    return () => window.clearInterval(interval);
+  }, [scenes.length]);
+
+  // Cinematic crossfades, slow camera zoom and animated text.
+  useEffect(() => {
+    sceneLayers.current.forEach((layer, index) => {
+      if (!layer) return;
+
+      gsap.killTweensOf(layer);
+
+      if (index === activeScene) {
+        gsap.fromTo(
+          layer,
+          {
+            autoAlpha: 0,
+            scale: 1.13,
+            x: 0,
+            y: 0,
+          },
+          {
+            autoAlpha: 1,
+            scale: 1.035,
+            duration: 1.7,
+            ease: "power3.out",
+          }
+        );
+      } else {
+        gsap.set(layer, {
+          autoAlpha: 0,
+          scale: 1.08,
+        });
+      }
+    });
+
+    if (sceneCopy.current) {
+      gsap.fromTo(
+        sceneCopy.current,
+        {
+          autoAlpha: 0,
+          y: 24,
+        },
+        {
+          autoAlpha: 1,
+          y: 0,
+          duration: 0.85,
+          delay: 0.2,
+          ease: "power3.out",
+        }
+      );
+    }
+
+    return () => {
+      sceneLayers.current.forEach((layer) => {
+        if (layer) gsap.killTweensOf(layer);
+      });
+
+      if (sceneCopy.current) {
+        gsap.killTweensOf(sceneCopy.current);
+      }
+    };
+  }, [activeScene, scenes]);
+
+  // Subtle mouse-responsive movement on desktop.
+  function handlePointerMove(event) {
+    if (event.pointerType === "touch") return;
+
+    const layer = sceneLayers.current[activeSceneRef.current];
+
+    if (!layer) return;
+
+    const x = event.clientX / window.innerWidth - 0.5;
+    const y = event.clientY / window.innerHeight - 0.5;
+
+    gsap.to(layer, {
+      x: x * -14,
+      y: y * -10,
+      duration: 1,
+      ease: "power2.out",
+      overwrite: "auto",
+    });
+  }
+
+  function handlePointerLeave() {
+    const layer = sceneLayers.current[activeSceneRef.current];
+
+    if (!layer) return;
+
+    gsap.to(layer, {
+      x: 0,
+      y: 0,
+      duration: 1,
+      ease: "power3.out",
+      overwrite: "auto",
+    });
+  }
+
+  function changeScene(direction) {
+    setActiveScene(
+      (current) =>
+        (current + direction + scenes.length) % scenes.length
+    );
+  }
+
+  function handleInputChange(event) {
     const { name, value, checked, type } = event.target;
 
     setForm((current) => ({
       ...current,
       [name]: type === "checkbox" ? checked : value,
     }));
-
-    setNotice("");
   }
 
   function handleSubmit(event) {
@@ -46,178 +305,214 @@ export default function Auth() {
     setNotice("");
 
     if (isRegister && form.password !== form.confirmPassword) {
-      setNotice("Your passwords do not match. Please try again.");
-      return;
-    }
-
-    if (isRegister && form.password.length < 8) {
-      setNotice("Your password must contain at least 8 characters.");
+      setNotice("Your passwords do not match.");
       return;
     }
 
     setNotice(
-      "The design is ready. We'll connect your account securely in the next step.",
+      isRegister
+        ? "The registration UI is ready. Account creation still needs backend integration."
+        : "The login UI is ready. Authentication still needs backend integration."
     );
   }
 
   return (
-    <main className="min-h-screen bg-[#090a0f] text-white lg:grid lg:grid-cols-[1.05fr_0.95fr]">
-      {/* =====================================
-          CINEMATIC LEFT PANEL
-      ====================================== */}
+    <main
+      onPointerMove={handlePointerMove}
+      onPointerLeave={handlePointerLeave}
+      className="relative min-h-screen overflow-hidden bg-[#08080d] text-white"
+    >
+      {/* FULL-SCREEN ANIMATED GAME ARTWORK */}
+      <div className="pointer-events-none fixed inset-0 overflow-hidden">
+        {scenes.map((scene, index) => (
+          <div
+            key={scene.id}
+            ref={(element) => {
+              sceneLayers.current[index] = element;
+            }}
+            className="absolute inset-0"
+            style={{ opacity: index === 0 ? 1 : 0 }}
+          >
+            <img
+              src={scene.image}
+              alt=""
+              className="h-full w-full object-cover object-center"
+              draggable="false"
+            />
+          </div>
+        ))}
 
-      <section className="relative isolate flex min-h-[300px] flex-col justify-between overflow-hidden px-6 py-6 sm:min-h-[370px] sm:px-10 sm:py-9 lg:min-h-screen lg:px-12 lg:py-10 xl:px-16">
-        {/* Background image */}
-        <img
-          src={WALLPAPER}
-          alt=""
-          aria-hidden="true"
-          fetchPriority="high"
-          className="absolute inset-0 -z-30 h-full w-full object-cover object-center"
-        />
+        {/* Cinematic colour grading */}
+        <div className="absolute inset-0 bg-black/25" />
 
-        {/* Layered cinematic grading */}
-        <div className="pointer-events-none absolute inset-0 -z-20 bg-[#090a0f]/35" />
+        <div className="absolute inset-0 bg-gradient-to-r from-[#08080d]/45 via-[#08080d]/50 to-[#08080d]/90" />
 
-        <div className="pointer-events-none absolute inset-0 -z-20 bg-gradient-to-r from-[#090a0f]/85 via-[#090a0f]/45 to-[#090a0f]/35" />
+        <div className="absolute inset-0 bg-gradient-to-t from-[#08080d] via-transparent to-[#08080d]/35" />
+      </div>
 
-        <div className="pointer-events-none absolute inset-0 -z-20 bg-gradient-to-t from-[#090a0f] via-transparent to-[#090a0f]/35" />
-
-        {/* Violet ambient light */}
-        <div className="pointer-events-none absolute -left-36 top-1/3 -z-10 h-80 w-80 rounded-full bg-violet-600/20 blur-[110px]" />
-
-        {/* Branding */}
+      {/* NO NAVBAR — ONLY A SMALL RETURN LINK */}
+      <div className="absolute left-5 top-5 z-20 sm:left-9 sm:top-8">
         <Link
           to="/"
-          className="group relative z-10 inline-flex w-fit items-center gap-2.5"
+          className="group inline-flex items-center gap-2 text-sm text-white/65 transition-colors hover:text-white"
         >
-          <Gamepad2
-            size={29}
-            strokeWidth={1.8}
-            className="text-violet-300 transition-transform duration-300 group-hover:-rotate-6"
+          <ArrowLeft
+            size={16}
+            className="transition-transform duration-300 group-hover:-translate-x-1"
           />
-
-          <span className="text-xl font-black tracking-[0.19em] text-white">
-            NEXORA<span className="text-violet-400">.</span>
-          </span>
+          Back to NEXORA
         </Link>
+      </div>
 
-        {/* Hero message */}
-        <div className="relative z-10 mx-auto my-12 w-full max-w-2xl lg:my-auto lg:py-20">
-          <div className="mb-6 flex items-center gap-3">
-            <span className="h-px w-9 bg-violet-400" />
+      {/* PAGE CONTENT */}
+      <div className="relative z-10 mx-auto grid min-h-screen w-full max-w-[1600px] grid-cols-1 items-center gap-10 px-5 pb-10 pt-24 sm:px-8 md:px-12 lg:grid-cols-[minmax(0,1fr)_450px] lg:gap-12 lg:px-16 lg:pt-16">
 
-            <span className="text-[10px] font-bold uppercase tracking-[0.3em] text-violet-200 sm:text-xs">
-              YOUR NEXT CHAPTER
-            </span>
-          </div>
+        {/* CINEMATIC GAME INTRO — DESKTOP */}
+        <section className="hidden min-h-[540px] flex-col justify-end pb-8 lg:flex">
+          <div ref={sceneCopy} className="max-w-2xl">
+            <div className="mb-6 inline-flex items-center gap-3 rounded-full border border-white/15 bg-black/20 px-4 py-2 backdrop-blur-md">
+              <span className="h-2 w-2 rounded-full bg-violet-400" />
 
-          <h1 className="max-w-2xl text-4xl font-black leading-[0.91] tracking-[-0.065em] sm:text-6xl lg:text-7xl xl:text-[88px]">
-            YOUR WORLD.
-            <br />
-
-            <span className="bg-gradient-to-r from-white via-white to-violet-300 bg-clip-text text-transparent">
-              YOUR RULES.
-            </span>
-          </h1>
-
-          <p className="mt-6 max-w-lg text-sm leading-7 text-zinc-300 sm:text-base sm:leading-8">
-            Revisit legendary adventures, discover new worlds, and
-            find the next game you won't want to put down.
-          </p>
-
-          {/* Minimal decorative details */}
-          <div className="mt-8 flex flex-wrap gap-2">
-            {["DISCOVER", "COLLECT", "EXPLORE"].map((label) => (
-              <span
-                key={label}
-                className="rounded-full border border-white/15 bg-black/15 px-3 py-2 text-[9px] font-semibold tracking-[0.2em] text-zinc-200 backdrop-blur-md sm:text-[10px]"
-              >
-                {label}
+              <span className="text-[10px] font-semibold uppercase tracking-[0.24em] text-white/80">
+                {currentScene.kicker}
               </span>
-            ))}
+            </div>
+
+            <p className="mb-4 text-xs font-semibold uppercase tracking-[0.3em] text-violet-300">
+              THE NEXORA EXPERIENCE
+            </p>
+
+            <h1 className="max-w-2xl text-5xl font-black leading-[1.04] tracking-tight xl:text-7xl">
+              {currentScene.tagline}
+            </h1>
+
+            <p className="mt-6 max-w-lg text-base leading-7 text-white/65 xl:text-lg">
+              {currentScene.description}
+            </p>
+
+            {/* PREVIOUS / NEXT SCENE */}
+            {scenes.length > 1 && (
+              <div className="mt-9 flex items-center gap-5">
+                <button
+                  type="button"
+                  onClick={() => changeScene(-1)}
+                  aria-label="Previous game"
+                  className="flex h-10 w-10 items-center justify-center rounded-full border border-white/20 text-white/75 transition-colors hover:border-violet-300 hover:text-violet-200"
+                >
+                  <ArrowLeft size={17} />
+                </button>
+
+                <div className="flex items-center gap-2">
+                  {scenes.map((scene, index) => (
+                    <button
+                      key={scene.id}
+                      type="button"
+                      aria-label={`Show ${scene.name}`}
+                      aria-pressed={activeScene === index}
+                      onClick={() => setActiveScene(index)}
+                      className={`h-1 rounded-full transition-all duration-500 ${
+                        activeScene === index
+                          ? "w-10 bg-violet-400"
+                          : "w-5 bg-white/35 hover:bg-white/70"
+                      }`}
+                    />
+                  ))}
+                </div>
+
+                <button
+                  type="button"
+                  onClick={() => changeScene(1)}
+                  aria-label="Next game"
+                  className="flex h-10 w-10 items-center justify-center rounded-full border border-white/20 text-white/75 transition-colors hover:border-violet-300 hover:text-violet-200"
+                >
+                  <ArrowRight size={17} />
+                </button>
+              </div>
+            )}
+
+            <div className="mt-7 flex items-center gap-3 text-sm text-white/50">
+              <Gamepad2 size={18} className="text-violet-300" />
+
+              <span>
+                Now featuring{" "}
+                <span className="text-white/80">
+                  {currentScene.name}
+                </span>
+              </span>
+            </div>
           </div>
-        </div>
+        </section>
 
-        {/* Bottom caption */}
-        <div className="relative z-10 hidden items-center justify-between gap-4 lg:flex">
-          <p className="text-[10px] uppercase tracking-[0.22em] text-white/50">
-            NEXORA / PLAYER ACCESS
-          </p>
+        {/* LOGIN / REGISTER CARD */}
+        <section
+          className="w-full max-w-[450px] justify-self-center rounded-[28px] border border-white/15 bg-[#101016]/80 p-6 backdrop-blur-2xl sm:p-9 lg:justify-self-end"
+          style={{ perspective: "1000px" }}
+        >
+          {/* FORM BRAND */}
+          <Link to="/" className="group mb-8 flex items-center gap-3">
+            <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-violet-600/15">
+              <Gamepad2
+                size={25}
+                className="text-violet-300 transition-transform duration-300 group-hover:rotate-[-12deg] group-hover:scale-110"
+              />
+            </div>
 
-          <p className="text-xs text-zinc-400">
-            A universe of possibilities.
-          </p>
-        </div>
-      </section>
+            <div>
+              <p className="text-lg font-black tracking-[0.15em]">
+                NEXORA
+              </p>
 
-      {/* =====================================
-          AUTHENTICATION FORM PANEL
-      ====================================== */}
-
-      <section className="relative flex min-h-[650px] items-center justify-center overflow-hidden border-t border-white/[0.06] bg-[#0c0d14] px-5 py-14 sm:px-10 lg:min-h-screen lg:border-l lg:border-t-0 lg:px-12 lg:py-20 xl:px-20">
-        {/* Subtle background glow */}
-        <div className="pointer-events-none absolute -right-40 top-0 h-80 w-80 rounded-full bg-violet-600/[0.08] blur-[110px]" />
-
-        <div className="relative w-full max-w-[430px]">
-          {/* Return to store */}
-          <Link
-            to="/"
-            className="mb-12 inline-flex items-center gap-2 text-xs font-medium text-zinc-500 transition-colors hover:text-white"
-          >
-            <ArrowLeft size={15} />
-            Back to the universe
+              <p className="text-[10px] uppercase tracking-[0.2em] text-white/40">
+                Enter another world
+              </p>
+            </div>
           </Link>
 
-          {/* Heading */}
-          <div className="mb-9">
-            <p className="mb-3 text-[10px] font-bold uppercase tracking-[0.28em] text-violet-400">
-              {isRegister ? "JOIN THE UNIVERSE" : "PLAYER ACCESS"}
-            </p>
-
-            <h2 className="text-3xl font-black tracking-[-0.045em] text-white sm:text-4xl">
-              {isRegister ? "Create your account." : "Welcome back."}
-            </h2>
-
-            <p className="mt-3 text-sm leading-6 text-zinc-400">
-              {isRegister
-                ? "Your next adventure starts with a new account."
-                : "Sign in and pick up where your next adventure begins."}
-            </p>
-          </div>
-
-          {/* Login / registration switch */}
-          <div className="mb-8 grid grid-cols-2 rounded-lg border border-white/[0.08] bg-[#11121a] p-1">
+          {/* LOGIN / REGISTER SWITCH */}
+          <div className="mb-8 grid grid-cols-2 rounded-xl border border-white/10 bg-black/20 p-1">
             <Link
               to="/login"
-              className={`rounded-md px-3 py-3 text-center text-sm font-semibold transition-all duration-300 ${
+              className={`rounded-lg px-4 py-2.5 text-center text-sm font-semibold transition-colors duration-300 ${
                 !isRegister
-                  ? "bg-[#252433] text-white shadow-sm"
-                  : "text-zinc-500 hover:text-zinc-200"
+                  ? "bg-white/10 text-white"
+                  : "text-white/45 hover:text-white"
               }`}
             >
-              Sign in
+              Login
             </Link>
 
             <Link
               to="/register"
-              className={`rounded-md px-3 py-3 text-center text-sm font-semibold transition-all duration-300 ${
+              className={`rounded-lg px-4 py-2.5 text-center text-sm font-semibold transition-colors duration-300 ${
                 isRegister
-                  ? "bg-[#252433] text-white shadow-sm"
-                  : "text-zinc-500 hover:text-zinc-200"
+                  ? "bg-white/10 text-white"
+                  : "text-white/45 hover:text-white"
               }`}
             >
-              Create account
+              Register
             </Link>
           </div>
 
-          {/* Form */}
+          {/* HEADING */}
+          <div className="mb-7">
+            <h2 className="text-3xl font-bold tracking-tight">
+              {isRegister ? "Create account" : "Welcome back"}
+            </h2>
+
+            <p className="mt-2 text-sm leading-6 text-white/45">
+              {isRegister
+                ? "Your next adventure starts with you."
+                : "Your next adventure is waiting for you."}
+            </p>
+          </div>
+
           <form onSubmit={handleSubmit} className="space-y-5">
+            {/* USERNAME */}
             {isRegister && (
               <div>
                 <label
                   htmlFor="username"
-                  className="mb-2 block text-xs font-medium text-zinc-300"
+                  className="mb-2 block text-xs font-medium text-white/70"
                 >
                   Username
                 </label>
@@ -225,7 +520,7 @@ export default function Auth() {
                 <div className="relative">
                   <UserRound
                     size={17}
-                    className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-zinc-500"
+                    className="absolute left-4 top-1/2 -translate-y-1/2 text-white/35"
                   />
 
                   <input
@@ -233,22 +528,22 @@ export default function Auth() {
                     name="username"
                     type="text"
                     autoComplete="username"
-                    minLength={3}
-                    maxLength={30}
-                    required
-                    value={form.username}
-                    onChange={updateField}
                     placeholder="Choose a username"
-                    className="h-12 w-full rounded-lg border border-white/[0.09] bg-[#11121a] pl-11 pr-4 text-sm text-white outline-none transition-all duration-200 placeholder:text-zinc-600 focus:border-violet-400/70 focus:ring-2 focus:ring-violet-500/10"
+                    value={form.username}
+                    onChange={handleInputChange}
+                    required
+                    minLength={3}
+                    className="w-full rounded-xl border border-white/10 bg-white/[0.04] py-3.5 pl-11 pr-4 text-sm text-white outline-none transition-colors placeholder:text-white/25 focus:border-violet-400/70"
                   />
                 </div>
               </div>
             )}
 
+            {/* EMAIL */}
             <div>
               <label
                 htmlFor="email"
-                className="mb-2 block text-xs font-medium text-zinc-300"
+                className="mb-2 block text-xs font-medium text-white/70"
               >
                 Email address
               </label>
@@ -256,7 +551,7 @@ export default function Auth() {
               <div className="relative">
                 <Mail
                   size={17}
-                  className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-zinc-500"
+                  className="absolute left-4 top-1/2 -translate-y-1/2 text-white/35"
                 />
 
                 <input
@@ -264,43 +559,28 @@ export default function Auth() {
                   name="email"
                   type="email"
                   autoComplete="email"
-                  required
-                  value={form.email}
-                  onChange={updateField}
                   placeholder="you@example.com"
-                  className="h-12 w-full rounded-lg border border-white/[0.09] bg-[#11121a] pl-11 pr-4 text-sm text-white outline-none transition-all duration-200 placeholder:text-zinc-600 focus:border-violet-400/70 focus:ring-2 focus:ring-violet-500/10"
+                  value={form.email}
+                  onChange={handleInputChange}
+                  required
+                  className="w-full rounded-xl border border-white/10 bg-white/[0.04] py-3.5 pl-11 pr-4 text-sm text-white outline-none transition-colors placeholder:text-white/25 focus:border-violet-400/70"
                 />
               </div>
             </div>
 
+            {/* PASSWORD */}
             <div>
-              <div className="mb-2 flex items-center justify-between gap-3">
-                <label
-                  htmlFor="password"
-                  className="text-xs font-medium text-zinc-300"
-                >
-                  Password
-                </label>
-
-                {!isRegister && (
-                  <button
-                    type="button"
-                    onClick={() =>
-                      setNotice(
-                        "Password recovery will be available when authentication is connected.",
-                      )
-                    }
-                    className="text-xs text-violet-300 transition-colors hover:text-violet-200"
-                  >
-                    Forgot password?
-                  </button>
-                )}
-              </div>
+              <label
+                htmlFor="password"
+                className="mb-2 block text-xs font-medium text-white/70"
+              >
+                Password
+              </label>
 
               <div className="relative">
                 <LockKeyhole
                   size={17}
-                  className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-zinc-500"
+                  className="absolute left-4 top-1/2 -translate-y-1/2 text-white/35"
                 />
 
                 <input
@@ -310,36 +590,31 @@ export default function Auth() {
                   autoComplete={
                     isRegister ? "new-password" : "current-password"
                   }
-                  minLength={isRegister ? 8 : undefined}
-                  required
-                  value={form.password}
-                  onChange={updateField}
                   placeholder="Enter your password"
-                  className="h-12 w-full rounded-lg border border-white/[0.09] bg-[#11121a] pl-11 pr-12 text-sm text-white outline-none transition-all duration-200 placeholder:text-zinc-600 focus:border-violet-400/70 focus:ring-2 focus:ring-violet-500/10"
+                  value={form.password}
+                  onChange={handleInputChange}
+                  required
+                  minLength={8}
+                  className="w-full rounded-xl border border-white/10 bg-white/[0.04] py-3.5 pl-11 pr-12 text-sm text-white outline-none transition-colors placeholder:text-white/25 focus:border-violet-400/70"
                 />
 
                 <button
                   type="button"
-                  aria-label={showPassword ? "Hide password" : "Show password"}
                   onClick={() => setShowPassword((value) => !value)}
-                  className="absolute right-4 top-1/2 -translate-y-1/2 text-zinc-500 transition-colors hover:text-white"
+                  aria-label={showPassword ? "Hide password" : "Show password"}
+                  className="absolute right-4 top-1/2 -translate-y-1/2 text-white/35 transition-colors hover:text-white/80"
                 >
                   {showPassword ? <EyeOff size={17} /> : <Eye size={17} />}
                 </button>
               </div>
-
-              {isRegister && (
-                <p className="mt-2 text-[11px] text-zinc-500">
-                  Use at least 8 characters.
-                </p>
-              )}
             </div>
 
+            {/* CONFIRM PASSWORD */}
             {isRegister && (
               <div>
                 <label
                   htmlFor="confirmPassword"
-                  className="mb-2 block text-xs font-medium text-zinc-300"
+                  className="mb-2 block text-xs font-medium text-white/70"
                 >
                   Confirm password
                 </label>
@@ -347,7 +622,7 @@ export default function Auth() {
                 <div className="relative">
                   <LockKeyhole
                     size={17}
-                    className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-zinc-500"
+                    className="absolute left-4 top-1/2 -translate-y-1/2 text-white/35"
                   />
 
                   <input
@@ -355,25 +630,25 @@ export default function Auth() {
                     name="confirmPassword"
                     type={showConfirmPassword ? "text" : "password"}
                     autoComplete="new-password"
-                    minLength={8}
-                    required
+                    placeholder="Repeat your password"
                     value={form.confirmPassword}
-                    onChange={updateField}
-                    placeholder="Re-enter your password"
-                    className="h-12 w-full rounded-lg border border-white/[0.09] bg-[#11121a] pl-11 pr-12 text-sm text-white outline-none transition-all duration-200 placeholder:text-zinc-600 focus:border-violet-400/70 focus:ring-2 focus:ring-violet-500/10"
+                    onChange={handleInputChange}
+                    required
+                    minLength={8}
+                    className="w-full rounded-xl border border-white/10 bg-white/[0.04] py-3.5 pl-11 pr-12 text-sm text-white outline-none transition-colors placeholder:text-white/25 focus:border-violet-400/70"
                   />
 
                   <button
                     type="button"
+                    onClick={() =>
+                      setShowConfirmPassword((value) => !value)
+                    }
                     aria-label={
                       showConfirmPassword
                         ? "Hide confirm password"
                         : "Show confirm password"
                     }
-                    onClick={() =>
-                      setShowConfirmPassword((value) => !value)
-                    }
-                    className="absolute right-4 top-1/2 -translate-y-1/2 text-zinc-500 transition-colors hover:text-white"
+                    className="absolute right-4 top-1/2 -translate-y-1/2 text-white/35 transition-colors hover:text-white/80"
                   >
                     {showConfirmPassword ? (
                       <EyeOff size={17} />
@@ -385,34 +660,50 @@ export default function Auth() {
               </div>
             )}
 
+            {/* REMEMBER ME / FORGOT PASSWORD */}
             {!isRegister && (
-              <label className="flex cursor-pointer items-center gap-2.5 text-xs text-zinc-400">
-                <input
-                  type="checkbox"
-                  name="remember"
-                  checked={form.remember}
-                  onChange={updateField}
-                  className="h-4 w-4 rounded border-white/20 accent-violet-500"
-                />
-                Keep me signed in
-              </label>
+              <div className="flex items-center justify-between gap-3 text-xs">
+                <label className="flex cursor-pointer items-center gap-2 text-white/55">
+                  <input
+                    type="checkbox"
+                    name="remember"
+                    checked={form.remember}
+                    onChange={handleInputChange}
+                    className="accent-violet-500"
+                  />
+                  Remember me
+                </label>
+
+                <button
+                  type="button"
+                  onClick={() =>
+                    setNotice(
+                      "Password recovery will be available when authentication is connected."
+                    )
+                  }
+                  className="text-violet-300 transition-colors hover:text-violet-200"
+                >
+                  Forgot password?
+                </button>
+              </div>
             )}
 
-            {/* Honest UI-preview feedback */}
+            {/* STATUS MESSAGE */}
             {notice && (
               <p
                 role="status"
-                className="rounded-lg border border-violet-400/20 bg-violet-400/[0.07] px-4 py-3 text-xs leading-6 text-violet-200"
+                className="rounded-xl border border-violet-400/20 bg-violet-400/[0.07] p-3 text-sm leading-5 text-violet-200"
               >
                 {notice}
               </p>
             )}
 
+            {/* SUBMIT BUTTON */}
             <button
               type="submit"
-              className="group flex h-12 w-full items-center justify-center gap-2 rounded-lg bg-violet-500 px-5 text-sm font-bold text-white shadow-[0_0_35px_rgba(139,92,246,0.12)] transition-all duration-300 hover:-translate-y-0.5 hover:bg-violet-400 hover:shadow-[0_0_35px_rgba(139,92,246,0.25)] focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-violet-300"
+              className="group flex w-full items-center justify-center gap-2 rounded-xl bg-violet-600 py-3.5 text-sm font-semibold text-white transition-colors duration-300 hover:bg-violet-500 active:bg-violet-700"
             >
-              {isRegister ? "Create your account" : "Sign in to NEXORA"}
+              {isRegister ? "Create account" : "Sign in"}
 
               <ArrowRight
                 size={17}
@@ -421,26 +712,26 @@ export default function Auth() {
             </button>
           </form>
 
-          {/* Account switch */}
-          <p className="mt-7 text-center text-xs leading-6 text-zinc-500">
+          {/* FORM FOOTER */}
+          <p className="mt-7 text-center text-sm text-white/45">
             {isRegister
-              ? "Already part of NEXORA?"
+              ? "Already have an account?"
               : "New to NEXORA?"}{" "}
             <Link
               to={isRegister ? "/login" : "/register"}
               className="font-semibold text-violet-300 transition-colors hover:text-violet-200"
             >
-              {isRegister ? "Sign in" : "Create an account"}
+              {isRegister ? "Login" : "Get started"}
             </Link>
           </p>
 
-          <div className="mt-9 border-t border-white/[0.07] pt-5 text-center">
-            <p className="text-[10px] uppercase tracking-[0.18em] text-zinc-600">
-              Your games. Your worlds. Your universe.
+          <div className="mt-7 border-t border-white/[0.08] pt-5">
+            <p className="text-center text-[10px] uppercase tracking-[0.18em] text-white/25">
+              Your next world is waiting
             </p>
           </div>
-        </div>
-      </section>
+        </section>
+      </div>
     </main>
   );
 }
