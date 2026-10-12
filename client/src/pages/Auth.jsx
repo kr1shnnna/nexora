@@ -1,3 +1,4 @@
+
 import { useEffect, useRef, useState } from "react";
 import { Link, useLocation } from "react-router-dom";
 import {
@@ -13,8 +14,8 @@ import {
 import gsap from "gsap";
 import { fetchGames } from "../services/gameService";
 
-// Curated artwork loads immediately.
-// API artwork is used only when the correct game is found.
+// Curated scenes render immediately.
+// Correctly matched API artwork can replace these images.
 const GAME_SCENES = [
   {
     id: "cyberpunk-2077",
@@ -66,7 +67,7 @@ const GAME_SCENES = [
   },
 ];
 
-// Popular AAA fallback if a game's artwork sources fail completely.
+// Last-resort AAA fallback if every source for a scene fails.
 const AAA_FALLBACK = {
   id: "red-dead-redemption-2",
   name: "Red Dead Redemption 2",
@@ -99,11 +100,11 @@ function findMatchingGame(games, expectedTitle) {
         (game) =>
           normalizeTitle(game.name) === "the last of us remastered"
       ) ||
-      games.find((game) => {
-        const title = normalizeTitle(game.name);
-
-        return /^the last of us part i(?:\s|$)/.test(title);
-      }) ||
+      games.find((game) =>
+        /^the last of us part i(?:\s|$)/.test(
+          normalizeTitle(game.name)
+        )
+      ) ||
       null
     );
   }
@@ -155,8 +156,7 @@ export default function Auth() {
 
   const currentScene = scenes[activeScene] || scenes[0];
 
-  // Fetch artwork for the exact intended games.
-  // The curated artwork remains available if the API fails.
+  // Load artwork without ever replacing a scene with an unrelated game.
   useEffect(() => {
     const controller = new AbortController();
 
@@ -189,25 +189,21 @@ export default function Auth() {
               return createScene(scene);
             }
 
-            // Correctly matched API artwork first;
-            // curated artwork remains as a fallback.
-            const imageOptions = [
-              apiImage,
-              ...scene.imageOptions.filter(
-                (image) => image !== apiImage
-              ),
-            ];
-
             return {
               ...scene,
-              imageOptions,
+              imageOptions: [
+                apiImage,
+                ...scene.imageOptions.filter(
+                  (image) => image !== apiImage
+                ),
+              ],
               imageIndex: 0,
               isEmergencyFallback: false,
             };
           } catch (error) {
             if (error.name !== "AbortError") {
               console.warn(
-                `Using curated artwork for ${scene.name}.`,
+                `Using curated artwork for ${scene.name}:`,
                 error.message
               );
             }
@@ -227,12 +223,12 @@ export default function Auth() {
     return () => controller.abort();
   }, []);
 
-  // Keep animation handlers synchronized with the current slide.
+  // Keep event handlers synchronized with the active scene.
   useEffect(() => {
     activeSceneRef.current = activeScene;
   }, [activeScene]);
 
-  // Automatically advance every eight seconds.
+  // Automatically advance the background every eight seconds.
   useEffect(() => {
     if (scenes.length < 2) return undefined;
 
@@ -243,7 +239,7 @@ export default function Auth() {
     return () => window.clearInterval(intervalId);
   }, [scenes.length]);
 
-  // Cinematic background transitions and animated scene copy.
+  // Animate only the artwork and copy when the active scene changes.
   useEffect(() => {
     sceneLayers.current.forEach((layer, index) => {
       if (!layer) return;
@@ -274,19 +270,20 @@ export default function Auth() {
       }
     });
 
+    // Fade and deblur without moving the text vertically.
     if (sceneCopyRef.current) {
       gsap.fromTo(
         sceneCopyRef.current,
         {
           autoAlpha: 0,
-          y: 24,
+          filter: "blur(5px)",
         },
         {
           autoAlpha: 1,
-          y: 0,
-          duration: 0.85,
-          delay: 0.15,
-          ease: "power3.out",
+          filter: "blur(0px)",
+          duration: 0.7,
+          delay: 0.1,
+          ease: "power2.out",
         }
       );
     }
@@ -302,7 +299,7 @@ export default function Auth() {
     };
   }, [activeScene, scenes]);
 
-  // Animate the authentication panel on Login/Register changes.
+  // Animate the form when switching between Login and Register.
   useEffect(() => {
     setNotice("");
 
@@ -329,8 +326,7 @@ export default function Auth() {
     return () => gsap.killTweensOf(panel);
   }, [isRegister]);
 
-  // If an image fails, try the next source for the same game.
-  // If all its sources fail, use Red Dead Redemption 2.
+  // Try the next artwork URL if the current image cannot load.
   function handleImageError(sceneIndex) {
     setScenes((currentScenes) => {
       const scene = currentScenes[sceneIndex];
@@ -362,7 +358,7 @@ export default function Auth() {
     });
   }
 
-  // Subtle mouse-responsive camera movement.
+  // Subtle mouse-responsive movement for depth.
   function handlePointerMove(event) {
     if (event.pointerType === "touch") return;
 
@@ -434,7 +430,7 @@ export default function Auth() {
       onPointerLeave={handlePointerLeave}
       className="relative min-h-screen overflow-hidden bg-[#08080d] text-white"
     >
-      {/* FULL-SCREEN GAME ARTWORK */}
+      {/* FULL-SCREEN CINEMATIC GAME ARTWORK */}
       <div className="pointer-events-none fixed inset-0 overflow-hidden">
         {scenes.map((scene, index) => (
           <div
@@ -456,7 +452,6 @@ export default function Auth() {
           </div>
         ))}
 
-        {/* Cinematic dark overlays */}
         <div className="absolute inset-0 bg-black/25" />
 
         <div className="absolute inset-0 bg-gradient-to-r from-[#08080d]/50 via-[#08080d]/50 to-[#08080d]/90" />
@@ -478,15 +473,18 @@ export default function Auth() {
         </Link>
       </div>
 
-      {/* MAIN LAYOUT */}
+      {/* MAIN CONTENT */}
       <div className="relative z-10 mx-auto grid min-h-screen w-full max-w-[1600px] grid-cols-1 items-center gap-10 px-5 pb-10 pt-24 sm:px-8 md:px-12 lg:grid-cols-[minmax(0,1fr)_450px] lg:gap-12 lg:px-16 lg:pt-16">
 
-        {/* CINEMATIC GAME INTRODUCTION */}
-        <section className="hidden min-h-[540px] flex-col justify-end pb-8 lg:flex">
-          <div ref={sceneCopyRef} className="max-w-2xl">
-            <div className="mb-6 inline-flex items-center gap-3 rounded-full border border-white/15 bg-black/20 px-4 py-2 backdrop-blur-md">
-        
-
+        {/* LEFT: FIXED CINEMATIC CONTENT */}
+        <section
+          className="hidden lg:fixed lg:left-16 lg:top-1/2 lg:z-10 lg:flex lg:w-[min(42vw,680px)] lg:-translate-y-1/2 lg:flex-col"
+        >
+          <div
+            ref={sceneCopyRef}
+            className="h-[500px] max-w-2xl"
+          >
+            <div className="mb-6 inline-flex items-center rounded-full border border-white/15 bg-black/20 px-4 py-2 backdrop-blur-md">
               <span className="text-[10px] font-semibold uppercase tracking-[0.24em] text-white/80">
                 {currentScene.kicker}
               </span>
@@ -557,10 +555,10 @@ export default function Auth() {
           </div>
         </section>
 
-        {/* LOGIN / REGISTER PANEL */}
+        {/* RIGHT: LOGIN / REGISTER PANEL */}
         <section
           ref={formPanelRef}
-          className="w-full max-w-[450px] justify-self-center rounded-[28px] border border-white/15 bg-[#101016]/80 p-6 backdrop-blur-2xl sm:p-9 lg:justify-self-end"
+          className="w-full max-w-[450px] justify-self-center rounded-[28px] border border-white/15 bg-[#101016]/80 p-6 backdrop-blur-2xl sm:p-9 lg:col-start-2 lg:row-start-1 lg:justify-self-end"
           style={{ perspective: "1000px" }}
         >
           {/* BRAND */}
@@ -583,7 +581,7 @@ export default function Auth() {
             </div>
           </Link>
 
-          {/* LOGIN / REGISTER TABS */}
+          {/* LOGIN / REGISTER SWITCH */}
           <div className="mb-8 grid grid-cols-2 rounded-xl border border-white/10 bg-black/20 p-1">
             <Link
               to="/login"
@@ -608,7 +606,7 @@ export default function Auth() {
             </Link>
           </div>
 
-          {/* HEADING */}
+          {/* FORM HEADING */}
           <div className="mb-7">
             <h2 className="text-3xl font-bold tracking-tight">
               {isRegister ? "Create account" : "Welcome back"}
@@ -622,7 +620,7 @@ export default function Auth() {
           </div>
 
           <form onSubmit={handleSubmit} className="space-y-5">
-            {/* USERNAME */}
+            {/* USERNAME — REGISTER ONLY */}
             {isRegister && (
               <div>
                 <label
@@ -716,7 +714,9 @@ export default function Auth() {
                 <button
                   type="button"
                   onClick={() => setShowPassword((value) => !value)}
-                  aria-label={showPassword ? "Hide password" : "Show password"}
+                  aria-label={
+                    showPassword ? "Hide password" : "Show password"
+                  }
                   className="absolute right-4 top-1/2 -translate-y-1/2 text-white/35 transition-colors hover:text-white/80"
                 >
                   {showPassword ? <EyeOff size={17} /> : <Eye size={17} />}
@@ -724,7 +724,7 @@ export default function Auth() {
               </div>
             </div>
 
-            {/* CONFIRM PASSWORD */}
+            {/* CONFIRM PASSWORD — REGISTER ONLY */}
             {isRegister && (
               <div>
                 <label
@@ -803,7 +803,7 @@ export default function Auth() {
               </div>
             )}
 
-            {/* FEEDBACK */}
+            {/* FORM FEEDBACK */}
             {notice && (
               <p
                 role="status"
@@ -827,7 +827,7 @@ export default function Auth() {
             </button>
           </form>
 
-          {/* FOOTER */}
+          {/* FORM FOOTER */}
           <p className="mt-7 text-center text-sm text-white/45">
             {isRegister
               ? "Already have an account?"
@@ -850,3 +850,4 @@ export default function Auth() {
     </main>
   );
 }
+
