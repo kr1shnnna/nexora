@@ -4,6 +4,7 @@ import {
   Gamepad2,
   Search,
   ShoppingCart,
+  LibraryBig,
   Menu,
   X,
   UserRound,
@@ -36,7 +37,7 @@ export default function Navbar() {
     setMenuOpen(false);
   }
 
-  // Synchronize the navbar with login/logout changes.
+  // Synchronize navbar with login/logout changes.
   useEffect(() => {
     function syncUser() {
       setUser(getCurrentUser());
@@ -51,7 +52,7 @@ export default function Navbar() {
     };
   }, []);
 
-  // Close the profile dropdown when clicking outside it.
+  // Close profile dropdown when clicking outside.
   useEffect(() => {
     function handleOutsideClick(event) {
       if (
@@ -79,6 +80,11 @@ export default function Navbar() {
     navigate("/", { replace: true });
   }
 
+  function handleNavigation() {
+    closeMenu();
+    setProfileOpen(false);
+  }
+
   return (
     <header className="absolute inset-x-0 top-0 z-50">
       <nav className="mx-auto flex max-w-[1600px] items-center justify-between px-5 py-5 sm:px-8 lg:px-14">
@@ -86,7 +92,7 @@ export default function Navbar() {
         {/* NEXORA Brand */}
         <Link
           to="/"
-          onClick={closeMenu}
+          onClick={handleNavigation}
           aria-label="NEXORA home"
           className="group flex shrink-0 items-center gap-2.5"
         >
@@ -116,7 +122,7 @@ export default function Navbar() {
           {/* Search */}
           <Link
             to="/discover"
-            onClick={closeMenu}
+            onClick={handleNavigation}
             aria-label="Search games"
             title="Discover games"
             className="text-white/70 transition-colors duration-300 hover:text-violet-300"
@@ -125,22 +131,28 @@ export default function Navbar() {
           </Link>
 
           {/* Shopping Cart */}
-          
-          
-{/* Shopping Cart */}
-<Link
-  to="/cart"
-  onClick={closeMenu}
-  aria-label="View shopping cart"
-  title="Shopping cart"
-  className="text-white/70 transition-colors duration-300 hover:text-violet-300"
->
-  <ShoppingCart size={21} />
-</Link>
+          <Link
+            to="/cart"
+            onClick={handleNavigation}
+            aria-label="View shopping cart"
+            title="Shopping cart"
+            className="text-white/70 transition-colors duration-300 hover:text-violet-300"
+          >
+            <ShoppingCart size={21} />
+          </Link>
 
+          {/* My Library */}
+          <Link
+            to="/library"
+            onClick={handleNavigation}
+            aria-label="My Library"
+            title="My Library"
+            className="hidden text-white/70 transition-colors duration-300 hover:text-violet-300 sm:inline-flex"
+          >
+            <LibraryBig size={21} />
+          </Link>
 
-
-          {/* AUTHENTICATED PROFILE OR GET STARTED */}
+          {/* Logged-in Profile or Get Started */}
           {user ? (
             <div ref={profileRef} className="relative">
               <button
@@ -191,10 +203,19 @@ export default function Navbar() {
 
                   <div className="my-4 h-px bg-white/10" />
 
+                  <Link
+                    to="/library"
+                    onClick={handleNavigation}
+                    className="flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-sm text-white/70 transition-colors duration-200 hover:bg-white/[0.06] hover:text-violet-300"
+                  >
+                    <LibraryBig size={17} />
+                    My Library
+                  </Link>
+
                   <button
                     type="button"
                     onClick={handleLogout}
-                    className="flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-sm text-white/70 transition-colors duration-200 hover:bg-white/[0.06] hover:text-white"
+                    className="mt-1 flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-sm text-white/70 transition-colors duration-200 hover:bg-white/[0.06] hover:text-white"
                   >
                     <LogOut size={17} />
                     Log out
@@ -205,7 +226,7 @@ export default function Navbar() {
           ) : (
             <Link
               to="/register"
-              onClick={closeMenu}
+              onClick={handleNavigation}
               className="hidden rounded-full bg-violet-600 px-5 py-2.5 text-sm font-semibold text-white transition-colors duration-300 hover:bg-violet-500 sm:inline-flex"
             >
               Get Started
@@ -243,6 +264,24 @@ export default function Navbar() {
               </a>
             ))}
 
+            <Link
+              to="/library"
+              onClick={handleNavigation}
+              className="flex items-center gap-2 text-sm font-medium text-white/75 transition-colors duration-300 hover:text-violet-300"
+            >
+              <LibraryBig size={17} />
+              My Library
+            </Link>
+
+            <Link
+              to="/cart"
+              onClick={handleNavigation}
+              className="flex items-center gap-2 text-sm font-medium text-white/75 transition-colors duration-300 hover:text-violet-300"
+            >
+              <ShoppingCart size={17} />
+              Shopping Cart
+            </Link>
+
             <div className="h-px bg-white/10" />
 
             {user ? (
@@ -270,7 +309,7 @@ export default function Navbar() {
               <>
                 <Link
                   to="/login"
-                  onClick={closeMenu}
+                  onClick={handleNavigation}
                   className="text-sm font-medium text-white/80 transition-colors hover:text-violet-300"
                 >
                   Login
@@ -278,7 +317,7 @@ export default function Navbar() {
 
                 <Link
                   to="/register"
-                  onClick={closeMenu}
+                  onClick={handleNavigation}
                   className="rounded-full bg-violet-600 px-5 py-3 text-center text-sm font-semibold text-white transition-colors duration-300 hover:bg-violet-500"
                 >
                   Get Started
