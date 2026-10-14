@@ -1,10 +1,10 @@
-
 import express from "express";
 import cors from "cors";
 import dotenv from "dotenv";
 
 import connectDB from "./config/db.js";
 import gamesRouter from "./routes/games.routes.js";
+import authRouter from "./routes/auth.routes.js";
 
 dotenv.config();
 
@@ -28,10 +28,13 @@ app.get("/api/health", (req, res) => {
   });
 });
 
-// Game discovery API
+// Existing game discovery API
 app.use("/api/games", gamesRouter);
 
-// Connect to MongoDB before starting Express
+// Authentication API
+app.use("/api/auth", authRouter);
+
+// Start server after MongoDB connects
 const startServer = async () => {
   try {
     await connectDB();
@@ -46,4 +49,3 @@ const startServer = async () => {
 };
 
 startServer();
-
