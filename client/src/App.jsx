@@ -4,6 +4,8 @@ import Home from "./pages/Home";
 import Discover from "./pages/Discover";
 import GameDetails from "./pages/GameDetails";
 import Auth from "./pages/Auth";
+import Cart from "./pages/Cart";
+import Library from "./pages/Library";
 
 function NotFound() {
   return (
@@ -38,6 +40,8 @@ export default function App() {
       <Route path="/login" element={<Auth />} />
       <Route path="/register" element={<Auth />} />
       <Route path="*" element={<NotFound />} />
+      <Route path="/cart" element={<Cart />} />
+      <Route path="/library" element= {<Library />} />
     </Routes>
   );
 }

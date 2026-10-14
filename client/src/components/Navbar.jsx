@@ -125,14 +125,20 @@ export default function Navbar() {
           </Link>
 
           {/* Shopping Cart */}
-          <button
-            type="button"
-            aria-label="Shopping cart"
-            title="Shopping cart"
-            className="text-white/70 transition-colors duration-300 hover:text-violet-300"
-          >
-            <ShoppingCart size={21} />
-          </button>
+          
+          
+{/* Shopping Cart */}
+<Link
+  to="/cart"
+  onClick={closeMenu}
+  aria-label="View shopping cart"
+  title="Shopping cart"
+  className="text-white/70 transition-colors duration-300 hover:text-violet-300"
+>
+  <ShoppingCart size={21} />
+</Link>
+
+
 
           {/* AUTHENTICATED PROFILE OR GET STARTED */}
           {user ? (
