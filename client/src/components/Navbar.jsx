@@ -1,14 +1,15 @@
+
 import { useEffect, useRef, useState } from "react";
 import {
   Gamepad2,
   Search,
   ShoppingCart,
-  LibraryBig,
   Menu,
   X,
   UserRound,
   ChevronDown,
   LogOut,
+  LibraryBig,
 } from "lucide-react";
 import { Link, useNavigate } from "react-router-dom";
 
@@ -51,7 +52,10 @@ export default function Navbar() {
   // Close profile dropdown when clicking outside.
   useEffect(() => {
     function handleOutsideClick(event) {
-      if (profileRef.current && !profileRef.current.contains(event.target)) {
+      if (
+        profileRef.current &&
+        !profileRef.current.contains(event.target)
+      ) {
         setProfileOpen(false);
       }
     }
@@ -194,27 +198,34 @@ export default function Navbar() {
 
                   <div className="my-4 h-px bg-white/10" />
 
-                  {/* My Library — logged-in users only */}
+                  {/* My Library — aligned menu row */}
                   {user && (
                     <Link
                       to="/library"
                       onClick={handleNavigation}
                       aria-label="My Library"
                       title="My Library"
-                      className="hidden text-white/70 transition-colors duration-300 hover:text-violet-300 sm:inline-flex"
+                      className="flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-sm text-white/70 transition-colors duration-200 hover:bg-white/[0.06] hover:text-violet-300"
                     >
-                      <LibraryBig size={21} />
-                      My Library
+                      <span className="flex h-5 w-5 shrink-0 items-center justify-center">
+                        <LibraryBig size={18} />
+                      </span>
+
+                      <span>My Library</span>
                     </Link>
                   )}
 
+                  {/* Log out — matching icon and text alignment */}
                   <button
                     type="button"
                     onClick={handleLogout}
                     className="mt-1 flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-sm text-white/70 transition-colors duration-200 hover:bg-white/[0.06] hover:text-white"
                   >
-                    <LogOut size={17} />
-                    Log out
+                    <span className="flex h-5 w-5 shrink-0 items-center justify-center">
+                      <LogOut size={18} />
+                    </span>
+
+                    <span>Log out</span>
                   </button>
                 </div>
               )}
@@ -261,7 +272,6 @@ export default function Navbar() {
             ))}
 
             {/* My Library — logged-in users only */}
-
             {user && (
               <Link
                 to="/library"
@@ -330,3 +340,4 @@ export default function Navbar() {
     </header>
   );
 }
+
