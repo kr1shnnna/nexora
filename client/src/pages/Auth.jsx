@@ -1,6 +1,6 @@
 
 import { useEffect, useRef, useState } from "react";
-import { Link, useLocation } from "react-router-dom";
+import { Link, useLocation, useNavigate } from "react-router-dom";
 import {
   ArrowLeft,
   ArrowRight,
@@ -12,10 +12,14 @@ import {
   UserRound,
 } from "lucide-react";
 import gsap from "gsap";
-import { fetchGames } from "../services/gameService";
 
-// Curated scenes render immediately.
-// Correctly matched API artwork can replace these images.
+import { fetchGames } from "../services/gameService";
+import {
+  loginUser,
+  registerUser,
+} from "../services/authService";
+
+// Curated scenes display immediately while API artwork loads.
 const GAME_SCENES = [
   {
     id: "cyberpunk-2077",
@@ -67,7 +71,7 @@ const GAME_SCENES = [
   },
 ];
 
-// Last-resort AAA fallback if every source for a scene fails.
+// Last-resort image fallback if all sources for a scene fail.
 const AAA_FALLBACK = {
   id: "red-dead-redemption-2",
   name: "Red Dead Redemption 2",
@@ -130,6 +134,8 @@ function createScene(scene) {
 
 export default function Auth() {
   const location = useLocation();
+  const navigate = useNavigate();
+
   const isRegister = location.pathname === "/register";
 
   const [scenes, setScenes] = useState(() =>
@@ -139,7 +145,10 @@ export default function Auth() {
 
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
   const [notice, setNotice] = useState("");
+  const [noticeType, setNoticeType] = useState("error");
 
   const [form, setForm] = useState({
     username: "",
@@ -153,10 +162,11 @@ export default function Auth() {
   const sceneCopyRef = useRef(null);
   const formPanelRef = useRef(null);
   const activeSceneRef = useRef(0);
+  const redirectTimerRef = useRef(null);
 
   const currentScene = scenes[activeScene] || scenes[0];
 
-  // Load artwork without ever replacing a scene with an unrelated game.
+  // Load exact game artwork from the existing backend.
   useEffect(() => {
     const controller = new AbortController();
 
@@ -223,12 +233,12 @@ export default function Auth() {
     return () => controller.abort();
   }, []);
 
-  // Keep event handlers synchronized with the active scene.
+  // Keep pointer handlers synchronized with the active scene.
   useEffect(() => {
     activeSceneRef.current = activeScene;
   }, [activeScene]);
 
-  // Automatically advance the background every eight seconds.
+  // Automatically advance through scenes every eight seconds.
   useEffect(() => {
     if (scenes.length < 2) return undefined;
 
@@ -239,7 +249,7 @@ export default function Auth() {
     return () => window.clearInterval(intervalId);
   }, [scenes.length]);
 
-  // Animate only the artwork and copy when the active scene changes.
+  // Cinematic crossfade and zoom.
   useEffect(() => {
     sceneLayers.current.forEach((layer, index) => {
       if (!layer) return;
@@ -270,7 +280,7 @@ export default function Auth() {
       }
     });
 
-    // Fade and deblur without moving the text vertically.
+    // Fade the copy without moving it vertically.
     if (sceneCopyRef.current) {
       gsap.fromTo(
         sceneCopyRef.current,
@@ -301,8 +311,6 @@ export default function Auth() {
 
   // Animate the form when switching between Login and Register.
   useEffect(() => {
-    setNotice("");
-
     if (!formPanelRef.current) return undefined;
 
     const panel = formPanelRef.current;
@@ -326,7 +334,29 @@ export default function Auth() {
     return () => gsap.killTweensOf(panel);
   }, [isRegister]);
 
-  // Try the next artwork URL if the current image cannot load.
+  // Display feedback passed from the registration page.
+  useEffect(() => {
+    const authMessage = location.state?.authMessage;
+
+    if (authMessage) {
+      setNotice(authMessage);
+      setNoticeType("success");
+    } else {
+      setNotice("");
+      setNoticeType("error");
+    }
+  }, [location.key, location.state]);
+
+  // Clean up a pending redirect if the component unmounts.
+  useEffect(() => {
+    return () => {
+      if (redirectTimerRef.current) {
+        window.clearTimeout(redirectTimerRef.current);
+      }
+    };
+  }, []);
+
+  // Try alternate sources if an artwork URL fails.
   function handleImageError(sceneIndex) {
     setScenes((currentScenes) => {
       const scene = currentScenes[sceneIndex];
@@ -358,7 +388,7 @@ export default function Auth() {
     });
   }
 
-  // Subtle mouse-responsive movement for depth.
+  // Subtle mouse-responsive background movement.
   function handlePointerMove(event) {
     if (event.pointerType === "touch") return;
 
@@ -408,21 +438,72 @@ export default function Auth() {
     }));
   }
 
-  function handleSubmit(event) {
+  // REAL REGISTRATION AND LOGIN
+  async function handleSubmit(event) {
     event.preventDefault();
+
+    if (isSubmitting) return;
+
     setNotice("");
+    setIsSubmitting(true);
 
-    if (isRegister && form.password !== form.confirmPassword) {
-      setNotice("Your passwords do not match.");
-      return;
+    try {
+      if (isRegister) {
+        // Register a real account in MongoDB.
+        const result = await registerUser({
+          username: form.username.trim(),
+          email: form.email.trim(),
+          password: form.password,
+        });
+
+        // Clear passwords before navigating to Login.
+        setForm((current) => ({
+          ...current,
+          password: "",
+          confirmPassword: "",
+        }));
+
+        navigate("/login", {
+          replace: true,
+          state: {
+            authMessage:
+              result.message ||
+              "Account created successfully! Please sign in.",
+          },
+        });
+
+        return;
+      }
+
+      // Verify credentials and save the returned JWT.
+      const result = await loginUser({
+        email: form.email.trim(),
+        password: form.password,
+      });
+
+      setNoticeType("success");
+      setNotice(
+        `Welcome back, ${result.user.username}! Redirecting...`
+      );
+
+      // Give the success message a moment to appear.
+      redirectTimerRef.current = window.setTimeout(() => {
+        navigate("/", { replace: true });
+      }, 850);
+    } catch (error) {
+      setNoticeType("error");
+      setNotice(
+        error.message || "Something went wrong. Please try again."
+      );
+    } finally {
+      setIsSubmitting(false);
     }
-
-    setNotice(
-      isRegister
-        ? "The registration UI is ready. Account creation still needs backend integration."
-        : "The login UI is ready. Authentication still needs backend integration."
-    );
   }
+
+  const noticeClasses =
+    noticeType === "success"
+      ? "border-emerald-400/20 bg-emerald-400/[0.07] text-emerald-200"
+      : "border-red-400/20 bg-red-400/[0.07] text-red-200";
 
   return (
     <main
@@ -430,7 +511,7 @@ export default function Auth() {
       onPointerLeave={handlePointerLeave}
       className="relative min-h-screen overflow-hidden bg-[#08080d] text-white"
     >
-      {/* FULL-SCREEN CINEMATIC GAME ARTWORK */}
+      {/* FULL-SCREEN GAME ARTWORK */}
       <div className="pointer-events-none fixed inset-0 overflow-hidden">
         {scenes.map((scene, index) => (
           <div
@@ -473,13 +554,11 @@ export default function Auth() {
         </Link>
       </div>
 
-      {/* MAIN CONTENT */}
+      {/* MAIN LAYOUT */}
       <div className="relative z-10 mx-auto grid min-h-screen w-full max-w-[1600px] grid-cols-1 items-center gap-10 px-5 pb-10 pt-24 sm:px-8 md:px-12 lg:grid-cols-[minmax(0,1fr)_450px] lg:gap-12 lg:px-16 lg:pt-16">
 
-        {/* LEFT: FIXED CINEMATIC CONTENT */}
-        <section
-          className="hidden lg:fixed lg:left-16 lg:top-1/2 lg:z-10 lg:flex lg:w-[min(42vw,680px)] lg:-translate-y-1/2 lg:flex-col"
-        >
+        {/* FIXED LEFT-SIDE CINEMATIC CONTENT */}
+        <section className="hidden lg:fixed lg:left-16 lg:top-1/2 lg:z-10 lg:flex lg:w-[min(42vw,680px)] lg:-translate-y-1/2 lg:flex-col">
           <div
             ref={sceneCopyRef}
             className="h-[500px] max-w-2xl"
@@ -555,7 +634,7 @@ export default function Auth() {
           </div>
         </section>
 
-        {/* RIGHT: LOGIN / REGISTER PANEL */}
+        {/* LOGIN / REGISTER PANEL */}
         <section
           ref={formPanelRef}
           className="w-full max-w-[450px] justify-self-center rounded-[28px] border border-white/15 bg-[#101016]/80 p-6 backdrop-blur-2xl sm:p-9 lg:col-start-2 lg:row-start-1 lg:justify-self-end"
@@ -581,7 +660,7 @@ export default function Auth() {
             </div>
           </Link>
 
-          {/* LOGIN / REGISTER SWITCH */}
+          {/* LOGIN / REGISTER TABS */}
           <div className="mb-8 grid grid-cols-2 rounded-xl border border-white/10 bg-black/20 p-1">
             <Link
               to="/login"
@@ -606,7 +685,7 @@ export default function Auth() {
             </Link>
           </div>
 
-          {/* FORM HEADING */}
+          {/* HEADING */}
           <div className="mb-7">
             <h2 className="text-3xl font-bold tracking-tight">
               {isRegister ? "Create account" : "Welcome back"}
@@ -646,7 +725,8 @@ export default function Auth() {
                     onChange={handleInputChange}
                     required
                     minLength={3}
-                    className="w-full rounded-xl border border-white/10 bg-white/[0.04] py-3.5 pl-11 pr-4 text-sm text-white outline-none transition-colors placeholder:text-white/25 focus:border-violet-400/70"
+                    disabled={isSubmitting}
+                    className="w-full rounded-xl border border-white/10 bg-white/[0.04] py-3.5 pl-11 pr-4 text-sm text-white outline-none transition-colors placeholder:text-white/25 focus:border-violet-400/70 disabled:opacity-50"
                   />
                 </div>
               </div>
@@ -676,7 +756,8 @@ export default function Auth() {
                   value={form.email}
                   onChange={handleInputChange}
                   required
-                  className="w-full rounded-xl border border-white/10 bg-white/[0.04] py-3.5 pl-11 pr-4 text-sm text-white outline-none transition-colors placeholder:text-white/25 focus:border-violet-400/70"
+                  disabled={isSubmitting}
+                  className="w-full rounded-xl border border-white/10 bg-white/[0.04] py-3.5 pl-11 pr-4 text-sm text-white outline-none transition-colors placeholder:text-white/25 focus:border-violet-400/70 disabled:opacity-50"
                 />
               </div>
             </div>
@@ -707,8 +788,9 @@ export default function Auth() {
                   value={form.password}
                   onChange={handleInputChange}
                   required
-                  minLength={8}
-                  className="w-full rounded-xl border border-white/10 bg-white/[0.04] py-3.5 pl-11 pr-12 text-sm text-white outline-none transition-colors placeholder:text-white/25 focus:border-violet-400/70"
+                  minLength={isRegister ? 8 : undefined}
+                  disabled={isSubmitting}
+                  className="w-full rounded-xl border border-white/10 bg-white/[0.04] py-3.5 pl-11 pr-12 text-sm text-white outline-none transition-colors placeholder:text-white/25 focus:border-violet-400/70 disabled:opacity-50"
                 />
 
                 <button
@@ -717,7 +799,8 @@ export default function Auth() {
                   aria-label={
                     showPassword ? "Hide password" : "Show password"
                   }
-                  className="absolute right-4 top-1/2 -translate-y-1/2 text-white/35 transition-colors hover:text-white/80"
+                  disabled={isSubmitting}
+                  className="absolute right-4 top-1/2 -translate-y-1/2 text-white/35 transition-colors hover:text-white/80 disabled:opacity-50"
                 >
                   {showPassword ? <EyeOff size={17} /> : <Eye size={17} />}
                 </button>
@@ -750,7 +833,8 @@ export default function Auth() {
                     onChange={handleInputChange}
                     required
                     minLength={8}
-                    className="w-full rounded-xl border border-white/10 bg-white/[0.04] py-3.5 pl-11 pr-12 text-sm text-white outline-none transition-colors placeholder:text-white/25 focus:border-violet-400/70"
+                    disabled={isSubmitting}
+                    className="w-full rounded-xl border border-white/10 bg-white/[0.04] py-3.5 pl-11 pr-12 text-sm text-white outline-none transition-colors placeholder:text-white/25 focus:border-violet-400/70 disabled:opacity-50"
                   />
 
                   <button
@@ -763,7 +847,8 @@ export default function Auth() {
                         ? "Hide confirm password"
                         : "Show confirm password"
                     }
-                    className="absolute right-4 top-1/2 -translate-y-1/2 text-white/35 transition-colors hover:text-white/80"
+                    disabled={isSubmitting}
+                    className="absolute right-4 top-1/2 -translate-y-1/2 text-white/35 transition-colors hover:text-white/80 disabled:opacity-50"
                   >
                     {showConfirmPassword ? (
                       <EyeOff size={17} />
@@ -784,6 +869,7 @@ export default function Auth() {
                     name="remember"
                     checked={form.remember}
                     onChange={handleInputChange}
+                    disabled={isSubmitting}
                     className="accent-violet-500"
                   />
                   Remember me
@@ -791,11 +877,13 @@ export default function Auth() {
 
                 <button
                   type="button"
-                  onClick={() =>
+                  onClick={() => {
+                    setNoticeType("error");
                     setNotice(
-                      "Password recovery will be available when authentication is connected."
-                    )
-                  }
+                      "Password recovery has not been implemented yet."
+                    );
+                  }}
+                  disabled={isSubmitting}
                   className="text-violet-300 transition-colors hover:text-violet-200"
                 >
                   Forgot password?
@@ -803,11 +891,12 @@ export default function Auth() {
               </div>
             )}
 
-            {/* FORM FEEDBACK */}
+            {/* REAL API SUCCESS / ERROR MESSAGE */}
             {notice && (
               <p
                 role="status"
-                className="rounded-xl border border-violet-400/20 bg-violet-400/[0.07] p-3 text-sm leading-5 text-violet-200"
+                aria-live="polite"
+                className={`rounded-xl border p-3 text-sm leading-5 ${noticeClasses}`}
               >
                 {notice}
               </p>
@@ -816,18 +905,27 @@ export default function Auth() {
             {/* SUBMIT */}
             <button
               type="submit"
-              className="group flex w-full items-center justify-center gap-2 rounded-xl bg-violet-600 py-3.5 text-sm font-semibold text-white transition-colors duration-300 hover:bg-violet-500 active:bg-violet-700"
+              disabled={isSubmitting}
+              className="group flex w-full items-center justify-center gap-2 rounded-xl bg-violet-600 py-3.5 text-sm font-semibold text-white transition-colors duration-300 hover:bg-violet-500 active:bg-violet-700 disabled:cursor-wait disabled:opacity-70"
             >
-              {isRegister ? "Create account" : "Sign in"}
+              {isSubmitting
+                ? isRegister
+                  ? "Creating account..."
+                  : "Signing in..."
+                : isRegister
+                  ? "Create account"
+                  : "Sign in"}
 
-              <ArrowRight
-                size={17}
-                className="transition-transform duration-300 group-hover:translate-x-1"
-              />
+              {!isSubmitting && (
+                <ArrowRight
+                  size={17}
+                  className="transition-transform duration-300 group-hover:translate-x-1"
+                />
+              )}
             </button>
           </form>
 
-          {/* FORM FOOTER */}
+          {/* FOOTER */}
           <p className="mt-7 text-center text-sm text-white/45">
             {isRegister
               ? "Already have an account?"
