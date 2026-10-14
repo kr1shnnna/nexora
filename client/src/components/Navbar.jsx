@@ -1,4 +1,3 @@
-
 import { useEffect, useRef, useState } from "react";
 import {
   Gamepad2,
@@ -13,10 +12,7 @@ import {
 } from "lucide-react";
 import { Link, useNavigate } from "react-router-dom";
 
-import {
-  getCurrentUser,
-  logoutUser,
-} from "../services/authService";
+import { getCurrentUser, logoutUser } from "../services/authService";
 
 const navLinks = [
   { label: "Discover", href: "/discover" },
@@ -55,10 +51,7 @@ export default function Navbar() {
   // Close profile dropdown when clicking outside.
   useEffect(() => {
     function handleOutsideClick(event) {
-      if (
-        profileRef.current &&
-        !profileRef.current.contains(event.target)
-      ) {
+      if (profileRef.current && !profileRef.current.contains(event.target)) {
         setProfileOpen(false);
       }
     }
@@ -88,7 +81,6 @@ export default function Navbar() {
   return (
     <header className="absolute inset-x-0 top-0 z-50">
       <nav className="mx-auto flex max-w-[1600px] items-center justify-between px-5 py-5 sm:px-8 lg:px-14">
-
         {/* NEXORA Brand */}
         <Link
           to="/"
@@ -118,7 +110,6 @@ export default function Navbar() {
 
         {/* Navbar Actions */}
         <div className="flex items-center gap-3 sm:gap-5">
-
           {/* Search */}
           <Link
             to="/discover"
@@ -203,14 +194,19 @@ export default function Navbar() {
 
                   <div className="my-4 h-px bg-white/10" />
 
-                  <Link
-                    to="/library"
-                    onClick={handleNavigation}
-                    className="flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-sm text-white/70 transition-colors duration-200 hover:bg-white/[0.06] hover:text-violet-300"
-                  >
-                    <LibraryBig size={17} />
-                    My Library
-                  </Link>
+                  {/* My Library — logged-in users only */}
+                  {user && (
+                    <Link
+                      to="/library"
+                      onClick={handleNavigation}
+                      aria-label="My Library"
+                      title="My Library"
+                      className="hidden text-white/70 transition-colors duration-300 hover:text-violet-300 sm:inline-flex"
+                    >
+                      <LibraryBig size={21} />
+                      My Library
+                    </Link>
+                  )}
 
                   <button
                     type="button"
@@ -264,14 +260,18 @@ export default function Navbar() {
               </a>
             ))}
 
-            <Link
-              to="/library"
-              onClick={handleNavigation}
-              className="flex items-center gap-2 text-sm font-medium text-white/75 transition-colors duration-300 hover:text-violet-300"
-            >
-              <LibraryBig size={17} />
-              My Library
-            </Link>
+            {/* My Library — logged-in users only */}
+
+            {user && (
+              <Link
+                to="/library"
+                onClick={handleNavigation}
+                className="flex items-center gap-2 text-sm font-medium text-white/75 transition-colors duration-300 hover:text-violet-300"
+              >
+                <LibraryBig size={17} />
+                My Library
+              </Link>
+            )}
 
             <Link
               to="/cart"
@@ -330,4 +330,3 @@ export default function Navbar() {
     </header>
   );
 }
-

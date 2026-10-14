@@ -1,4 +1,3 @@
-
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import {
@@ -67,7 +66,7 @@ export default function Library() {
 
   const totalSpent = games.reduce(
     (sum, game) => sum + (Number(game.price) || 0),
-    0
+    0,
   );
 
   return (
@@ -82,7 +81,6 @@ export default function Library() {
       </div>
 
       <div className="relative mx-auto max-w-[1500px] px-5 pb-24 pt-32 sm:px-8 lg:px-12">
-
         {/* Page heading */}
         <section className="mb-12">
           <div className="mb-5 flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.3em] text-violet-300">
@@ -97,30 +95,18 @@ export default function Library() {
               </h1>
 
               <p className="mt-4 max-w-xl text-sm leading-7 text-white/50 sm:text-base">
-                Every adventure you've claimed, all in one place.
-                Your collection grows with every discovery.
+                Every adventure you've claimed, all in one place. Your
+                collection grows with every discovery.
               </p>
             </div>
 
             {!loading && !error && games.length > 0 && (
               <div className="flex flex-wrap gap-3">
                 <div className="rounded-2xl border border-white/10 bg-white/[0.03] px-5 py-4">
-                  <p className="text-xs text-white/40">
-                    Games owned
-                  </p>
+                  <p className="text-xs text-white/40">Games owned</p>
 
                   <p className="mt-1 text-2xl font-bold">
                     {games.length.toString().padStart(2, "0")}
-                  </p>
-                </div>
-
-                <div className="rounded-2xl border border-white/10 bg-white/[0.03] px-5 py-4">
-                  <p className="text-xs text-white/40">
-                    Demo collection value
-                  </p>
-
-                  <p className="mt-1 text-2xl font-bold">
-                    {formatPrice(totalSpent)}
                   </p>
                 </div>
               </div>
@@ -131,14 +117,9 @@ export default function Library() {
         {/* Loading state */}
         {loading && (
           <div className="flex min-h-[350px] flex-col items-center justify-center gap-4">
-            <LoaderCircle
-              size={34}
-              className="animate-spin text-violet-300"
-            />
+            <LoaderCircle size={34} className="animate-spin text-violet-300" />
 
-            <p className="text-sm text-white/45">
-              Loading your collection...
-            </p>
+            <p className="text-sm text-white/45">Loading your collection...</p>
           </div>
         )}
 
@@ -148,10 +129,7 @@ export default function Library() {
             role="alert"
             className="flex min-h-[300px] flex-col items-center justify-center rounded-3xl border border-white/10 bg-white/[0.02] px-5 py-12 text-center"
           >
-            <AlertCircle
-              size={32}
-              className="mb-5 text-violet-300"
-            />
+            <AlertCircle size={32} className="mb-5 text-violet-300" />
 
             <h2 className="text-2xl font-bold">
               {isAuthenticationError
@@ -207,9 +185,9 @@ export default function Library() {
               </h2>
 
               <p className="mx-auto mt-4 max-w-md text-sm leading-7 text-white/45 sm:text-base">
-                Your library is waiting for its first legend.
-                Discover worlds, complete a demo purchase, and
-                watch your personal collection come to life.
+                Your library is waiting for its first legend. Discover worlds,
+                complete a demo purchase, and watch your personal collection
+                come to life.
               </p>
 
               <Link
@@ -218,7 +196,6 @@ export default function Library() {
               >
                 <ShoppingBag size={18} />
                 Discover Games
-
                 <ArrowRight
                   size={17}
                   className="transition-transform duration-300 group-hover:translate-x-1"
@@ -294,15 +271,13 @@ export default function Library() {
 
                   {/* Game details */}
                   <div className="p-5">
-                    <h3 className="truncate text-lg font-bold">
-                      {game.name}
-                    </h3>
+                    <h3 className="truncate text-lg font-bold">{game.name}</h3>
 
                     <div className="mt-3 flex items-center justify-between gap-3">
                       <span className="text-xs text-white/40">
                         {game.purchasedAt
                           ? `Added ${new Date(
-                              game.purchasedAt
+                              game.purchasedAt,
                             ).toLocaleDateString("en-IN", {
                               day: "numeric",
                               month: "short",
@@ -341,4 +316,3 @@ export default function Library() {
     </main>
   );
 }
-

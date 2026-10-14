@@ -46,9 +46,29 @@ async function accountRequest(endpoint, options = {}) {
   return data;
 }
 
-// Retrieve the logged-in user's cart.
+// Retrieve the authenticated user's cart.
 export function fetchCart() {
   return accountRequest("/cart");
+}
+
+// Add a game to the authenticated user's cart.
+export function addCartItem({
+  gameId,
+  slug = "",
+  name,
+  backgroundImage = "",
+  price,
+}) {
+  return accountRequest("/cart", {
+    method: "POST",
+    body: JSON.stringify({
+      gameId: String(gameId),
+      slug,
+      name,
+      backgroundImage,
+      price,
+    }),
+  });
 }
 
 // Remove a game from the cart.
@@ -69,7 +89,7 @@ export function checkoutCart() {
   });
 }
 
-// Retrieve games owned by the logged-in user.
+// Retrieve games owned by the authenticated user.
 export function fetchLibrary() {
   return accountRequest("/library");
 }
