@@ -1,3 +1,4 @@
+
 import express from "express";
 import cors from "cors";
 import dotenv from "dotenv";
@@ -5,6 +6,7 @@ import dotenv from "dotenv";
 import connectDB from "./config/db.js";
 import gamesRouter from "./routes/games.routes.js";
 import authRouter from "./routes/auth.routes.js";
+import cartRouter from "./routes/cart.routes.js";
 
 dotenv.config();
 
@@ -28,11 +30,14 @@ app.get("/api/health", (req, res) => {
   });
 });
 
-// Existing game discovery API
+// Game discovery API
 app.use("/api/games", gamesRouter);
 
 // Authentication API
 app.use("/api/auth", authRouter);
+
+// Cart API
+app.use("/api/cart", cartRouter);
 
 // Start server after MongoDB connects
 const startServer = async () => {
@@ -49,3 +54,4 @@ const startServer = async () => {
 };
 
 startServer();
+
