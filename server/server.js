@@ -7,6 +7,7 @@ import connectDB from "./config/db.js";
 import gamesRouter from "./routes/games.routes.js";
 import authRouter from "./routes/auth.routes.js";
 import cartRouter from "./routes/cart.routes.js";
+import libraryRouter from "./routes/library.routes.js";
 
 dotenv.config();
 
@@ -36,8 +37,11 @@ app.use("/api/games", gamesRouter);
 // Authentication API
 app.use("/api/auth", authRouter);
 
-// Cart API
+// Shopping cart API
 app.use("/api/cart", cartRouter);
+
+// My Library API
+app.use("/api/library", libraryRouter);
 
 // Start server after MongoDB connects
 const startServer = async () => {
